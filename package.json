@@ -1,0 +1,23 @@
+{
+  "name": "polybot",
+  "version": "1.0.0",
+  "description": "High-performance blockchain monitoring and arbitrage bot",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "polygon",
+    "arbitrage",
+    "bot"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^6.13.4"
+  }
+}
