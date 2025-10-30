@@ -1,6 +1,6 @@
 # polybot
 
-------- BP-001 prompt --------
+------- BP-001 Basic Server --------
 
 I want to create a basic app connection to an RPC provider and to have the following functionality
 
@@ -27,6 +27,18 @@ use ethers.js
 use es6 type module
 
 any quastion or issues please ask
+
+------- BP-002 - Expand transaction details
+
+I want to add more transaction details,
+so parse transaction to get more details about this transaction and print it.
+
+you can ask me what details I may want
+
+.. Basicly I want all kind of details, but I want to be able to config which data to print
+if you need to change the logic how to handle it please do it, buld it as you would did it if you start it from beginning
+
+. do you analyze also the "data" field in mempool to see what function he call and what params?
 
 ------- Pending prompt
 

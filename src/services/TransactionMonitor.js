@@ -1,10 +1,11 @@
 import Logger from '../utils/logger.js';
 import TransactionParser from '../parsers/TransactionParser.js';
 import TransactionFilter from '../filters/TransactionFilter.js';
+import TransactionEnricher from '../core/TransactionEnricher.js';
 
 /**
  * Monitors blockchain for transactions and mempool activity
- * Handles subscriptions and event processing
+ * Handles subscriptions and event processing with full transaction enrichment
  */
 class TransactionMonitor {
   constructor(provider, options = {}) {
@@ -12,12 +13,14 @@ class TransactionMonitor {
     this.options = {
       monitorPending: options.monitorPending !== false, // Default true
       monitorConfirmed: options.monitorConfirmed !== false, // Default true
+      enrichTransactions: options.enrichTransactions !== false, // Default true - fetch receipts
       batchSize: options.batchSize || 1, // Process transactions individually by default
       ...options
     };
 
     this.parser = new TransactionParser();
     this.filter = new TransactionFilter(options.filterConfig || {});
+    this.enricher = new TransactionEnricher(provider);
     this.logger = new Logger('TransactionMonitor');
 
     // Event handlers
@@ -130,7 +133,13 @@ class TransactionMonitor {
         // Process each transaction in the block
         for (const tx of block.transactions) {
           try {
-            const parsedTx = this.parser.parse(tx);
+            // Enrich transaction with receipt if enabled
+            let enrichedTx = tx;
+            if (this.options.enrichTransactions) {
+              enrichedTx = await this.enricher.enrichTransaction(tx);
+            }
+
+            const parsedTx = this.parser.parse(enrichedTx);
 
             if (!parsedTx) {
               continue;
@@ -143,8 +152,14 @@ class TransactionMonitor {
 
             this.stats.confirmedCount++;
 
-            // Call handler
-            await this.handlers.onTransaction(parsedTx);
+            // Extract token transfers if receipt available
+            let tokenTransfers = [];
+            if (enrichedTx.receipt?.logs) {
+              tokenTransfers = this.enricher.extractTokenTransfers(enrichedTx.receipt.logs);
+            }
+
+            // Call handler with token transfers
+            await this.handlers.onTransaction(parsedTx, tokenTransfers);
           } catch (error) {
             this.stats.errorCount++;
             this.handlers.onError(error, { blockNumber, txHash: tx.hash, type: 'confirmed' });

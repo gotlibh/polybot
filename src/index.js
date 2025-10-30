@@ -1,6 +1,7 @@
 import RpcProvider from "./core/RpcProvider.js";
 import TransactionMonitor from "./services/TransactionMonitor.js";
 import Logger from "./utils/logger.js";
+import OutputFormatter from "./utils/OutputFormatter.js";
 import config from "./config/default.js";
 
 // Try to load custom config if it exists
@@ -31,6 +32,7 @@ class PolyBot {
     this.config = config;
     this.rpcProvider = null;
     this.monitor = null;
+    this.formatter = new OutputFormatter(config.output || {});
     this.isRunning = false;
   }
 
@@ -87,41 +89,29 @@ class PolyBot {
   /**
    * Handle confirmed transactions
    */
-  _handleTransaction(parsedTx) {
-    const summary = this.monitor.parser.createSummary(parsedTx);
+  _handleTransaction(parsedTx, tokenTransfers = []) {
+    // Get detailed transaction information
+    const detailedInfo = this.monitor.parser.getDetailedInfo(parsedTx);
 
-    console.log("\n" + "=".repeat(60));
-    console.log("CONFIRMED TRANSACTION");
-    console.log("=".repeat(60));
-    console.log(`Type:       ${summary.type}`);
-    console.log(`Hash:       ${summary.hash}`);
-    console.log(`From:       ${summary.from}`);
-    console.log(`To:         ${summary.to}`);
-    console.log(`Value:      ${summary.value}`);
-    console.log(`Block:      ${summary.block}`);
-    console.log(`Status:     ${summary.status}`);
-    console.log(`Timestamp:  ${summary.timestamp}`);
-    console.log("=".repeat(60) + "\n");
+    // Format and display using configured formatter
+    const output = this.formatter.format(parsedTx, detailedInfo, tokenTransfers);
+    console.log(output);
 
     // Future: Add custom logic for arbitrage detection, etc.
+    // You can access all the parsed data in parsedTx and detailedInfo
+    // Example: if (parsedTx.methodSignature === '0xa9059cbb') { /* ERC20 transfer */ }
   }
 
   /**
    * Handle pending transactions (mempool)
    */
   _handlePending(parsedTx) {
-    const summary = this.monitor.parser.createSummary(parsedTx);
+    // Get detailed transaction information
+    const detailedInfo = this.monitor.parser.getDetailedInfo(parsedTx);
 
-    console.log("\n" + "-".repeat(60));
-    console.log("MEMPOOL TRANSACTION");
-    console.log("-".repeat(60));
-    console.log(`Type:       ${summary.type}`);
-    console.log(`Hash:       ${summary.hash}`);
-    console.log(`From:       ${summary.from}`);
-    console.log(`To:         ${summary.to}`);
-    console.log(`Value:      ${summary.value}`);
-    console.log(`Status:     ${summary.status}`);
-    console.log("-".repeat(60) + "\n");
+    // Format and display using configured formatter
+    const output = this.formatter.format(parsedTx, detailedInfo, []);
+    console.log(output);
 
     // Future: Add mempool analysis for frontrunning/arbitrage opportunities
   }
