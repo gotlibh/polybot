@@ -123,11 +123,12 @@ Mempool         Confirmed
 **Purpose**: Filter transactions based on criteria
 - Filter by addresses (from/to)
 - Filter by value range
-- Performance-optimized with early returns
+- Performance-optimized with two-stage filtering
 - Statistics tracking
 
 **Key Methods**:
-- `shouldProcess(tx)` - Check if transaction passes filters
+- `shouldFetch(rawTx)` - Early filter check before enrichment (optimized)
+- `shouldProcess(tx)` - Full filter check on parsed transaction
 - `updateConfig(config)` - Update filter configuration
 - `getStats()` - Get filter statistics
 
@@ -161,16 +162,20 @@ Mempool         Confirmed
    ↓
 3. For Each Transaction:
    ↓
-4. Enrich (Fetch Receipt + Block Data)
+4. Early Filter (Check addresses/value - fast)
    ↓
-5. Parse (Extract all details)
+5. Enrich (Fetch Receipt + Block Data - only for matching txs)
    ↓
-6. Filter (Check if should process)
+6. Parse (Extract all details)
    ↓
-7. Format (Apply output configuration)
+7. Full Filter (Check parsed data - validation)
    ↓
-8. Display (Console output)
+8. Format (Apply output configuration)
+   ↓
+9. Display (Console output)
 ```
+
+**Performance Optimization**: The early filter (step 4) checks address and value filters using basic transaction data before the expensive receipt fetch (step 5). This can save hundreds of RPC calls per block when address filters are configured.
 
 ### Pending Transaction Flow
 
@@ -243,7 +248,7 @@ Create new enricher or extend `TransactionEnricher`:
 ### High Transaction Volume
 - Use `compact` output style
 - Disable `enrichTransactions` (skip receipts)
-- Enable address filtering
+- Enable address filtering (leverages early filter optimization)
 - Increase `maxReconnectAttempts`
 
 ### Detailed Analysis

@@ -146,6 +146,13 @@ class TransactionMonitor {
               continue; // Skip if we couldn't fetch the transaction
             }
 
+            // Early filter check - skip enrichment for filtered transactions
+            // This optimization avoids expensive receipt fetching for transactions
+            // that don't match address/value filters
+            if (!this.filter.shouldFetch(txObj)) {
+              continue;
+            }
+
             // Enrich transaction with receipt if enabled
             let enrichedTx = txObj;
             if (this.options.enrichTransactions) {
@@ -158,7 +165,7 @@ class TransactionMonitor {
               continue;
             }
 
-            // Apply filters
+            // Apply full filters (includes parsed data)
             if (!this.filter.shouldProcess(parsedTx)) {
               continue;
             }

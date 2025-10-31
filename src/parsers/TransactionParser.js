@@ -60,7 +60,9 @@ class TransactionParser {
         },
 
         // Status (for confirmed transactions)
-        confirmations: rawTx.confirmations || 0,
+        // Note: confirmations is a function in ethers.js, not a value
+        // We don't include it in parsed data to avoid printing function code
+        confirmations: 'N/A',
 
         // Metadata
         isPending: !rawTx.blockNumber,
@@ -246,7 +248,7 @@ class TransactionParser {
         hash: parsedTx.blockHash || 'Pending',
         timestamp: parsedTx.blockDate ? parsedTx.blockDate.toISOString() : 'N/A',
         transactionIndex: parsedTx.transactionIndex ?? 'N/A',
-        confirmations: parsedTx.confirmations
+        // confirmations field omitted - it's async in ethers.js
       },
       data: {
         size: parsedTx.dataSize + ' bytes',

@@ -29,6 +29,59 @@ class TransactionFilter {
   }
 
   /**
+   * Early filter check for raw transactions (before enrichment/parsing)
+   * Only checks filters that don't require receipt data (addresses, value)
+   * This allows filtering before expensive receipt fetching
+   * @param {Object} rawTx - Raw transaction object from provider
+   * @returns {boolean}
+   */
+  shouldFetch(rawTx) {
+    // If no filters configured, fetch all transactions
+    if (!this._hasFilters()) {
+      return true;
+    }
+
+    // Check address filters (from OR to)
+    if (this.normalizedAddresses.length > 0) {
+      const fromMatch = this.normalizedAddresses.includes(rawTx.from?.toLowerCase());
+      const toMatch = rawTx.to && this.normalizedAddresses.includes(rawTx.to.toLowerCase());
+
+      if (!fromMatch && !toMatch) {
+        return false;
+      }
+    }
+
+    // Check specific from address filter
+    if (this.normalizedFromAddresses.length > 0) {
+      if (!this.normalizedFromAddresses.includes(rawTx.from?.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Check specific to address filter
+    if (this.normalizedToAddresses.length > 0) {
+      if (!rawTx.to || !this.normalizedToAddresses.includes(rawTx.to.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Check value range
+    if (this.config.minValue !== null || this.config.maxValue !== null) {
+      const value = BigInt(rawTx.value || 0);
+
+      if (this.config.minValue !== null && value < BigInt(this.config.minValue)) {
+        return false;
+      }
+
+      if (this.config.maxValue !== null && value > BigInt(this.config.maxValue)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Check if transaction passes all filter criteria
    * @param {Object} tx - Parsed transaction object
    * @returns {boolean}
