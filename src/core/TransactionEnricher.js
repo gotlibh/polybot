@@ -1,4 +1,4 @@
-import Logger from '../utils/logger.js';
+import Logger from "../utils/logger.js";
 
 /**
  * Enriches transaction data with receipts and additional details
@@ -7,7 +7,7 @@ import Logger from '../utils/logger.js';
 class TransactionEnricher {
   constructor(provider) {
     this.provider = provider;
-    this.logger = new Logger('TransactionEnricher');
+    this.logger = new Logger("TransactionEnricher");
     this.cache = new Map(); // Simple cache for receipts
   }
 
@@ -35,7 +35,7 @@ class TransactionEnricher {
             contractAddress: receipt.contractAddress || null,
             transactionIndex: receipt.index,
             blockHash: receipt.blockHash,
-            blockNumber: receipt.blockNumber
+            blockNumber: receipt.blockNumber,
           };
 
           // Calculate actual transaction fee
@@ -56,7 +56,7 @@ class TransactionEnricher {
 
       return enriched;
     } catch (error) {
-      this.logger.error('Failed to enrich transaction', error);
+      this.logger.error("Failed to enrich transaction", error);
       return tx; // Return original if enrichment fails
     }
   }
@@ -110,9 +110,12 @@ class TransactionEnricher {
    * ERC1155 TransferSingle: 0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62
    */
   extractTokenTransfers(logs) {
-    const ERC20_TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-    const ERC1155_TRANSFER_SINGLE = '0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62';
-    const ERC1155_TRANSFER_BATCH = '0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb';
+    const ERC20_TRANSFER_TOPIC =
+      "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+    const ERC1155_TRANSFER_SINGLE =
+      "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62";
+    const ERC1155_TRANSFER_BATCH =
+      "0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb";
 
     const transfers = [];
 
@@ -124,32 +127,32 @@ class TransactionEnricher {
       if (topic0 === ERC20_TRANSFER_TOPIC && log.topics.length === 3) {
         // ERC20/ERC721 Transfer(address,address,uint256)
         transfers.push({
-          type: 'ERC20/ERC721',
+          type: "ERC20/ERC721",
           contract: log.address,
-          from: '0x' + log.topics[1].slice(26), // Remove padding
-          to: '0x' + log.topics[2].slice(26),
+          from: "0x" + log.topics[1].slice(26), // Remove padding
+          to: "0x" + log.topics[2].slice(26),
           value: log.data, // Can be amount (ERC20) or tokenId (ERC721)
-          logIndex: log.index
+          logIndex: log.index,
         });
       } else if (topic0 === ERC1155_TRANSFER_SINGLE) {
         // ERC1155 TransferSingle
         transfers.push({
-          type: 'ERC1155',
+          type: "ERC1155",
           contract: log.address,
-          operator: '0x' + log.topics[1].slice(26),
-          from: '0x' + log.topics[2].slice(26),
-          to: '0x' + log.topics[3].slice(26),
-          logIndex: log.index
+          operator: "0x" + log.topics[1].slice(26),
+          from: "0x" + log.topics[2].slice(26),
+          to: "0x" + log.topics[3].slice(26),
+          logIndex: log.index,
         });
       } else if (topic0 === ERC1155_TRANSFER_BATCH) {
         // ERC1155 TransferBatch
         transfers.push({
-          type: 'ERC1155_BATCH',
+          type: "ERC1155_BATCH",
           contract: log.address,
-          operator: '0x' + log.topics[1].slice(26),
-          from: '0x' + log.topics[2].slice(26),
-          to: '0x' + log.topics[3].slice(26),
-          logIndex: log.index
+          operator: "0x" + log.topics[1].slice(26),
+          from: "0x" + log.topics[2].slice(26),
+          to: "0x" + log.topics[3].slice(26),
+          logIndex: log.index,
         });
       }
     }

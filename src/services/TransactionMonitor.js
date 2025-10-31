@@ -1,7 +1,7 @@
-import Logger from '../utils/logger.js';
-import TransactionParser from '../parsers/TransactionParser.js';
-import TransactionFilter from '../filters/TransactionFilter.js';
-import TransactionEnricher from '../core/TransactionEnricher.js';
+import Logger from "../utils/logger.js";
+import TransactionParser from "../parsers/TransactionParser.js";
+import TransactionFilter from "../filters/TransactionFilter.js";
+import TransactionEnricher from "../core/TransactionEnricher.js";
 
 /**
  * Monitors blockchain for transactions and mempool activity
@@ -15,19 +15,20 @@ class TransactionMonitor {
       monitorConfirmed: options.monitorConfirmed !== false, // Default true
       enrichTransactions: options.enrichTransactions !== false, // Default true - fetch receipts
       batchSize: options.batchSize || 1, // Process transactions individually by default
-      ...options
+      ...options,
     };
 
     this.parser = new TransactionParser();
     this.filter = new TransactionFilter(options.filterConfig || {});
     this.enricher = new TransactionEnricher(provider);
-    this.logger = new Logger('TransactionMonitor');
+    this.logger = new Logger("TransactionMonitor");
 
     // Event handlers
     this.handlers = {
-      onTransaction: options.onTransaction || this._defaultTransactionHandler.bind(this),
+      onTransaction:
+        options.onTransaction || this._defaultTransactionHandler.bind(this),
       onPending: options.onPending || this._defaultPendingHandler.bind(this),
-      onError: options.onError || this._defaultErrorHandler.bind(this)
+      onError: options.onError || this._defaultErrorHandler.bind(this),
     };
 
     // Monitoring state
@@ -36,7 +37,7 @@ class TransactionMonitor {
       pendingCount: 0,
       confirmedCount: 0,
       errorCount: 0,
-      startTime: null
+      startTime: null,
     };
   }
 
@@ -45,14 +46,14 @@ class TransactionMonitor {
    */
   async start() {
     if (this.isMonitoring) {
-      this.logger.warn('Monitor is already running');
+      this.logger.warn("Monitor is already running");
       return;
     }
 
     try {
-      this.logger.info('Starting transaction monitor', {
+      this.logger.info("Starting transaction monitor", {
         monitorPending: this.options.monitorPending,
-        monitorConfirmed: this.options.monitorConfirmed
+        monitorConfirmed: this.options.monitorConfirmed,
       });
 
       this.isMonitoring = true;
@@ -68,9 +69,9 @@ class TransactionMonitor {
         await this._subscribeToBlocks();
       }
 
-      this.logger.info('Transaction monitor started successfully');
+      this.logger.info("Transaction monitor started successfully");
     } catch (error) {
-      this.logger.error('Failed to start transaction monitor', error);
+      this.logger.error("Failed to start transaction monitor", error);
       this.isMonitoring = false;
       throw error;
     }
@@ -80,9 +81,9 @@ class TransactionMonitor {
    * Subscribe to pending transactions (mempool)
    */
   async _subscribeToPending() {
-    this.logger.info('Subscribing to pending transactions (mempool)');
+    this.logger.info("Subscribing to pending transactions (mempool)");
 
-    this.provider.on('pending', async (txHash) => {
+    this.provider.on("pending", async (txHash) => {
       try {
         // Fetch full transaction details
         const tx = await this.provider.getTransaction(txHash);
@@ -108,7 +109,7 @@ class TransactionMonitor {
         await this.handlers.onPending(parsedTx);
       } catch (error) {
         this.stats.errorCount++;
-        this.handlers.onError(error, { txHash, type: 'pending' });
+        this.handlers.onError(error, { txHash, type: "pending" });
       }
     });
   }
@@ -117,9 +118,9 @@ class TransactionMonitor {
    * Subscribe to new blocks and their transactions
    */
   async _subscribeToBlocks() {
-    this.logger.info('Subscribing to new blocks');
+    this.logger.info("Subscribing to new blocks");
 
-    this.provider.on('block', async (blockNumber) => {
+    this.provider.on("block", async (blockNumber) => {
       try {
         // Fetch block with transactions
         const block = await this.provider.getBlock(blockNumber, true);
@@ -128,15 +129,27 @@ class TransactionMonitor {
           return;
         }
 
-        this.logger.debug(`Processing block ${blockNumber} with ${block.transactions.length} transactions`);
+        this.logger.debug(
+          `Processing block ${blockNumber} with ${block.transactions.length} transactions`
+        );
 
         // Process each transaction in the block
         for (const tx of block.transactions) {
           try {
+            // If tx is a hash string, fetch the full transaction object
+            const txObj =
+              typeof tx === "string"
+                ? await this.provider.getTransaction(tx)
+                : tx;
+
+            if (!txObj) {
+              continue; // Skip if we couldn't fetch the transaction
+            }
+
             // Enrich transaction with receipt if enabled
-            let enrichedTx = tx;
+            let enrichedTx = txObj;
             if (this.options.enrichTransactions) {
-              enrichedTx = await this.enricher.enrichTransaction(tx);
+              enrichedTx = await this.enricher.enrichTransaction(txObj);
             }
 
             const parsedTx = this.parser.parse(enrichedTx);
@@ -155,19 +168,26 @@ class TransactionMonitor {
             // Extract token transfers if receipt available
             let tokenTransfers = [];
             if (enrichedTx.receipt?.logs) {
-              tokenTransfers = this.enricher.extractTokenTransfers(enrichedTx.receipt.logs);
+              tokenTransfers = this.enricher.extractTokenTransfers(
+                enrichedTx.receipt.logs
+              );
             }
 
             // Call handler with token transfers
             await this.handlers.onTransaction(parsedTx, tokenTransfers);
           } catch (error) {
             this.stats.errorCount++;
-            this.handlers.onError(error, { blockNumber, txHash: tx.hash, type: 'confirmed' });
+            const txHash = typeof tx === "string" ? tx : tx.hash;
+            this.handlers.onError(error, {
+              blockNumber,
+              txHash,
+              type: "confirmed",
+            });
           }
         }
       } catch (error) {
         this.stats.errorCount++;
-        this.handlers.onError(error, { blockNumber, type: 'block' });
+        this.handlers.onError(error, { blockNumber, type: "block" });
       }
     });
   }
@@ -180,18 +200,18 @@ class TransactionMonitor {
       return;
     }
 
-    this.logger.info('Stopping transaction monitor');
+    this.logger.info("Stopping transaction monitor");
 
     // Remove all listeners
-    this.provider.removeAllListeners('pending');
-    this.provider.removeAllListeners('block');
+    this.provider.removeAllListeners("pending");
+    this.provider.removeAllListeners("block");
 
     this.isMonitoring = false;
 
     const runtime = Date.now() - this.stats.startTime;
-    this.logger.info('Transaction monitor stopped', {
+    this.logger.info("Transaction monitor stopped", {
       runtime: `${(runtime / 1000).toFixed(2)}s`,
-      ...this.stats
+      ...this.stats,
     });
   }
 
@@ -200,7 +220,7 @@ class TransactionMonitor {
    */
   updateFilter(filterConfig) {
     this.filter.updateConfig(filterConfig);
-    this.logger.info('Filter configuration updated');
+    this.logger.info("Filter configuration updated");
   }
 
   /**
@@ -208,7 +228,7 @@ class TransactionMonitor {
    */
   _defaultTransactionHandler(parsedTx) {
     const summary = this.parser.createSummary(parsedTx);
-    console.log('\n--- Confirmed Transaction ---');
+    console.log("\n--- Confirmed Transaction ---");
     console.log(JSON.stringify(summary, null, 2));
   }
 
@@ -217,7 +237,7 @@ class TransactionMonitor {
    */
   _defaultPendingHandler(parsedTx) {
     const summary = this.parser.createSummary(parsedTx);
-    console.log('\n--- Pending Transaction (Mempool) ---');
+    console.log("\n--- Pending Transaction (Mempool) ---");
     console.log(JSON.stringify(summary, null, 2));
   }
 
@@ -225,7 +245,10 @@ class TransactionMonitor {
    * Default error handler
    */
   _defaultErrorHandler(error, context) {
-    this.logger.error('Transaction processing error', { error: error.message, context });
+    this.logger.error("Transaction processing error", {
+      error: error.message,
+      context,
+    });
   }
 
   /**
@@ -238,7 +261,7 @@ class TransactionMonitor {
       ...this.stats,
       filterStats: this.filter.getStats(),
       isMonitoring: this.isMonitoring,
-      runtime: runtime > 0 ? `${(runtime / 1000).toFixed(2)}s` : '0s'
+      runtime: runtime > 0 ? `${(runtime / 1000).toFixed(2)}s` : "0s",
     };
   }
 
@@ -250,7 +273,7 @@ class TransactionMonitor {
       pendingCount: 0,
       confirmedCount: 0,
       errorCount: 0,
-      startTime: this.isMonitoring ? Date.now() : null
+      startTime: this.isMonitoring ? Date.now() : null,
     };
     this.filter.resetStats();
   }

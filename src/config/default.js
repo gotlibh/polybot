@@ -16,16 +16,21 @@ export default {
 
   // Transaction Monitoring Configuration
   monitor: {
-    monitorPending: true, // Monitor mempool transactions
+    monitorPending: false, // Monitor mempool transactions
     monitorConfirmed: true, // Monitor confirmed transactions in blocks
-    enrichTransactions: true, // Fetch transaction receipts for detailed information
+    enrichTransactions: false, // Fetch transaction receipts for detailed information
     batchSize: 1, // Process transactions individually
   },
 
   // Transaction Filter Configuration
   filter: {
     // Example: Filter transactions by specific addresses
-    // addresses: ['0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'],  // Monitor any tx from/to these addresses
+    addresses: [
+      "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
+      "0x2f5e87C9312fa29aed5c179E456625D79015299c",
+      "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36",
+      "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD",
+    ], // Monitor any tx from/to these addresses
     // fromAddresses: [
     // "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
     // "0x1a1ec25DC08e98e5E93F1104B5e5cdD298707d31",
@@ -57,7 +62,7 @@ export default {
       block: true, // Block information
       data: true, // Transaction data (size, method signature, etc.)
       decodedData: true, // Decoded function calls and parameters (NEW!)
-      network: true, // Network information (chain ID, logs count)
+      network: false, // Network information (chain ID, logs count)
       receipt: true, // Receipt information (status, gas used, etc.)
       tokenTransfers: true, // Token transfer events (ERC20/721/1155)
     },

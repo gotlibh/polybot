@@ -40,6 +40,10 @@ if you need to change the logic how to handle it please do it, buld it as you wo
 
 . do you analyze also the "data" field in mempool to see what function he call and what params?
 
+---- BP-004 - bug fix block print
+
+In the function enrichTransaction the tx param is a hash not an object, look at the sender
+
 ------- Pending prompt
 
 add APIs to be able to connect to the service and
