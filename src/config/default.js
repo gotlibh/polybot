@@ -24,29 +24,19 @@ export default {
 
   // Transaction Filter Configuration
   filter: {
-    // Example: Filter transactions by specific addresses
-    addresses: [
-      "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
-      "0x2f5e87C9312fa29aed5c179E456625D79015299c",
-      "0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36",
-      "0xCBCdF9626bC03E24f779434178A73a0B4bad62eD",
-      "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
-      "0x5757371414417b8c6caad45baef941abc7d3ab32",
-      "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506",
-      "0x111111125421cA6dc452d289314280a0f8842a65",
-      "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
-      "0xA102072A4C07F06EC3B4900FDC4C7B80B6C57429",
-      "0x2fA4334cfD7c56a0E7Ca02BD81455205FcBDc5E9",
-      "0x1a1ec25DC08e98e5E93F1104B5e5cdD298707d31",
-    ], // Monitor any tx from/to these addresses
-    // fromAddresses: [
-    // "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
-    // "0x1a1ec25DC08e98e5E93F1104B5e5cdD298707d31",
-    // ], // Only monitor tx FROM these addresses
-    // toAddresses: [
-    // "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
-    // "0x1a1ec25DC08e98e5E93F1104B5e5cdD298707d31",
-    // ], // Only monitor tx TO these addresses
+    // Filter transactions by specific addresses or address groups
+    // Use '@groupName' to reference a group from addresses.js
+    // Examples:
+    //   ['@myAddresses'] - Only your wallets
+    //   ['@allDexes'] - All DEX contracts
+    //   ['@myAddresses', '@quickswap'] - Your wallets and QuickSwap
+    //   ['0x123...', '@myAddresses'] - Mix of individual addresses and groups
+    addresses: ['@allDexes'], // Monitor any tx from/to all DEXes
+
+    // Alternative: use specific from/to filters
+    // fromAddresses: ['@myAddresses'], // Only monitor tx FROM your wallets
+    // toAddresses: ['@allDexes'], // Only monitor tx TO DEXes
+
     // Example: Filter by transaction value
     // minValue: '1000000000000000000',  // 1 ETH in wei
     // maxValue: null

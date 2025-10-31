@@ -18,7 +18,7 @@ class TransactionMonitor {
       ...options,
     };
 
-    this.parser = new TransactionParser();
+    this.parser = new TransactionParser(options.addressMapperConfig || null);
     this.filter = new TransactionFilter(options.filterConfig || {});
     this.enricher = new TransactionEnricher(provider);
     this.logger = new Logger("TransactionMonitor");

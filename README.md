@@ -44,6 +44,9 @@ if you need to change the logic how to handle it please do it, buld it as you wo
 
 In the function enrichTransaction the tx param is a hash not an object, look at the sender
 
+----- BP-005 - Map addresses to names
+Now the address are just some 0x codes, I want to be be able to map addresses to names, Maybe it would be a good idea to map it in a file somehow and loading it on start, I want to be able to print the address and the name, I also want address to be handle by groups, for ex. myAddresses, quickSwap address, etc.
+
 ------- Pending prompt
 
 add APIs to be able to connect to the service and

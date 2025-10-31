@@ -2,7 +2,9 @@ import RpcProvider from "./core/RpcProvider.js";
 import TransactionMonitor from "./services/TransactionMonitor.js";
 import Logger from "./utils/logger.js";
 import OutputFormatter from "./utils/OutputFormatter.js";
+import AddressMapper from "./utils/AddressMapper.js";
 import config from "./config/default.js";
+import addressConfig from "./config/addresses.js";
 
 // Try to load custom config if it exists
 let customConfig = {};
@@ -13,13 +15,43 @@ try {
   // Custom config doesn't exist, use defaults
 }
 
+// Try to load custom addresses if it exists
+let customAddressConfig = {};
+try {
+  const customAddressModule = await import("./config/addresses.custom.js");
+  customAddressConfig = customAddressModule.default;
+} catch (error) {
+  // Custom addresses don't exist, use defaults
+}
+
+// Merge address configurations
+const finalAddressConfig = {
+  addresses: { ...(addressConfig.addresses || {}), ...(customAddressConfig.addresses || {}) },
+  groups: { ...(addressConfig.groups || {}), ...(customAddressConfig.groups || {}) }
+};
+
+// Initialize AddressMapper
+const addressMapper = new AddressMapper(finalAddressConfig);
+
+// Resolve address groups in filter configuration
+const resolveFilterAddresses = (filterConfig) => {
+  if (!filterConfig) return filterConfig;
+
+  return {
+    ...filterConfig,
+    addresses: filterConfig.addresses ? addressMapper.resolveAddresses(filterConfig.addresses) : [],
+    fromAddresses: filterConfig.fromAddresses ? addressMapper.resolveAddresses(filterConfig.fromAddresses) : [],
+    toAddresses: filterConfig.toAddresses ? addressMapper.resolveAddresses(filterConfig.toAddresses) : []
+  };
+};
+
 // Merge configurations
 const finalConfig = {
   ...config,
   ...customConfig,
   rpc: { ...config.rpc, ...(customConfig.rpc || {}) },
   monitor: { ...config.monitor, ...(customConfig.monitor || {}) },
-  filter: { ...config.filter, ...(customConfig.filter || {}) },
+  filter: resolveFilterAddresses({ ...config.filter, ...(customConfig.filter || {}) }),
 };
 
 const logger = new Logger("Main");
@@ -65,6 +97,7 @@ class PolyBot {
       this.monitor = new TransactionMonitor(provider, {
         ...this.config.monitor,
         filterConfig: this.config.filter,
+        addressMapperConfig: finalAddressConfig,
         onTransaction: this._handleTransaction.bind(this),
         onPending: this._handlePending.bind(this),
         onError: this._handleError.bind(this),

@@ -1,6 +1,7 @@
 import { formatEther, formatUnits, toUtf8String } from 'ethers';
 import Logger from '../utils/logger.js';
 import DataDecoder from '../utils/DataDecoder.js';
+import AddressMapper from '../utils/AddressMapper.js';
 
 /**
  * Parses and formats transaction data with comprehensive details
@@ -8,9 +9,10 @@ import DataDecoder from '../utils/DataDecoder.js';
  * Includes function signature and parameter decoding
  */
 class TransactionParser {
-  constructor() {
+  constructor(addressMapperConfig = null) {
     this.logger = new Logger('TransactionParser');
     this.dataDecoder = new DataDecoder();
+    this.addressMapper = addressMapperConfig ? new AddressMapper(addressMapperConfig) : null;
   }
 
   /**
@@ -24,7 +26,9 @@ class TransactionParser {
         // Basic transaction info
         hash: rawTx.hash,
         from: rawTx.from,
+        fromName: this.addressMapper ? this.addressMapper.getName(rawTx.from) : null,
         to: rawTx.to || null,
+        toName: this.addressMapper ? this.addressMapper.getName(rawTx.to) : null,
         value: rawTx.value?.toString() || '0',
         valueEth: this._formatValue(rawTx.value),
 
@@ -222,12 +226,22 @@ class TransactionParser {
    * Returns all available information organized by category
    */
   getDetailedInfo(parsedTx) {
+    // Format addresses with names if available
+    const fromDisplay = parsedTx.fromName
+      ? `${parsedTx.fromName} (${parsedTx.from})`
+      : parsedTx.from;
+
+    const toAddress = parsedTx.to || (parsedTx.isContractCreation ? 'Contract Creation' : null);
+    const toDisplay = parsedTx.toName && parsedTx.to
+      ? `${parsedTx.toName} (${parsedTx.to})`
+      : toAddress;
+
     return {
       basic: {
         hash: parsedTx.hash,
         status: parsedTx.isPending ? 'Pending' : (parsedTx.success ? 'Success' : (parsedTx.failed ? 'Failed' : 'Confirmed')),
-        from: parsedTx.from,
-        to: parsedTx.to || (parsedTx.isContractCreation ? 'Contract Creation' : null),
+        from: fromDisplay,
+        to: toDisplay,
         value: parsedTx.valueEth + ' ETH',
         nonce: parsedTx.nonce,
         type: parsedTx.type
