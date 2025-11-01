@@ -56,6 +56,12 @@ x seconds as defined in the config, I also want to print it in case its enabled
 
 in the config I will define a list of address of DEX to be requsted
 
+------ BP-009 - Execute a swap
+Now I want the ability to send a transaction to a swap contract,
+So it will not appen automaticlly, for now I just want the ability to send by API the params and you will execute it and return the result, of course I have to pass the amount the pairs the DEX contract, gas etc.
+
+Do it well organized to be suitable with the system, the API should have a validation process, use best practices and build it will organzied high quality code
+
 ------- Pending prompt
 
 add APIs to be able to connect to the service and

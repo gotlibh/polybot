@@ -1,6 +1,8 @@
 import RpcProvider from "./core/RpcProvider.js";
 import TransactionMonitor from "./services/TransactionMonitor.js";
 import DexPriceMonitor from "./services/DexPriceMonitor.js";
+import SwapExecutor from "./services/SwapExecutor.js";
+import SwapAPI from "./api/SwapAPI.js";
 import Logger from "./utils/logger.js";
 import OutputFormatter from "./utils/OutputFormatter.js";
 import PriceFormatter from "./utils/PriceFormatter.js";
@@ -28,8 +30,14 @@ try {
 
 // Merge address configurations
 const finalAddressConfig = {
-  addresses: { ...(addressConfig.addresses || {}), ...(customAddressConfig.addresses || {}) },
-  groups: { ...(addressConfig.groups || {}), ...(customAddressConfig.groups || {}) }
+  addresses: {
+    ...(addressConfig.addresses || {}),
+    ...(customAddressConfig.addresses || {}),
+  },
+  groups: {
+    ...(addressConfig.groups || {}),
+    ...(customAddressConfig.groups || {}),
+  },
 };
 
 // Initialize AddressMapper
@@ -41,9 +49,15 @@ const resolveFilterAddresses = (filterConfig) => {
 
   return {
     ...filterConfig,
-    addresses: filterConfig.addresses ? addressMapper.resolveAddresses(filterConfig.addresses) : [],
-    fromAddresses: filterConfig.fromAddresses ? addressMapper.resolveAddresses(filterConfig.fromAddresses) : [],
-    toAddresses: filterConfig.toAddresses ? addressMapper.resolveAddresses(filterConfig.toAddresses) : []
+    addresses: filterConfig.addresses
+      ? addressMapper.resolveAddresses(filterConfig.addresses)
+      : [],
+    fromAddresses: filterConfig.fromAddresses
+      ? addressMapper.resolveAddresses(filterConfig.fromAddresses)
+      : [],
+    toAddresses: filterConfig.toAddresses
+      ? addressMapper.resolveAddresses(filterConfig.toAddresses)
+      : [],
   };
 };
 
@@ -53,7 +67,10 @@ const finalConfig = {
   ...customConfig,
   rpc: { ...config.rpc, ...(customConfig.rpc || {}) },
   monitor: { ...config.monitor, ...(customConfig.monitor || {}) },
-  filter: resolveFilterAddresses({ ...config.filter, ...(customConfig.filter || {}) }),
+  filter: resolveFilterAddresses({
+    ...config.filter,
+    ...(customConfig.filter || {}),
+  }),
 };
 
 const logger = new Logger("Main");
@@ -67,6 +84,8 @@ class PolyBot {
     this.rpcProvider = null;
     this.monitor = null;
     this.priceMonitor = null;
+    this.swapExecutor = null;
+    this.swapAPI = null;
     this.formatter = new OutputFormatter(config.output || {});
     this.priceFormatter = new PriceFormatter(config.dexPrices?.display || {});
     this.isRunning = false;
@@ -114,9 +133,31 @@ class PolyBot {
       if (this.config.dexPrices?.enabled) {
         this.priceMonitor = new DexPriceMonitor(provider, {
           ...this.config.dexPrices,
-          onPriceUpdate: this._handlePriceUpdate.bind(this)
+          onPriceUpdate: this._handlePriceUpdate.bind(this),
         });
         await this.priceMonitor.start();
+      }
+
+      // Initialize swap executor and API if enabled
+      if (this.config.swap?.enabled) {
+        logger.info("Initializing swap system");
+
+        // Create swap executor
+        this.swapExecutor = new SwapExecutor(
+          provider,
+          this.config.swap.executor
+        );
+        await this.swapExecutor.initialize(
+          this.config.dexPrices?.dexRouters || []
+        );
+
+        // Start swap API if enabled
+        if (this.config.swap.api?.enabled) {
+          this.swapAPI = new SwapAPI(this.swapExecutor, this.config.swap.api);
+          await this.swapAPI.start();
+
+          logger.info("Swap API started", this.swapAPI.getInfo());
+        }
       }
 
       this.isRunning = true;
@@ -140,7 +181,11 @@ class PolyBot {
     const detailedInfo = this.monitor.parser.getDetailedInfo(parsedTx);
 
     // Format and display using configured formatter
-    const output = this.formatter.format(parsedTx, detailedInfo, tokenTransfers);
+    const output = this.formatter.format(
+      parsedTx,
+      detailedInfo,
+      tokenTransfers
+    );
     console.log(output);
 
     // Future: Add custom logic for arbitrage detection, etc.
@@ -186,6 +231,10 @@ class PolyBot {
    * Start periodic stats reporting
    */
   _startStatsReporting() {
+    if (!this.config.statsEnabled) {
+      return;
+    }
+
     const interval = 60000; // 1 minute
 
     this.statsInterval = setInterval(() => {
@@ -196,6 +245,12 @@ class PolyBot {
       if (this.priceMonitor) {
         const priceStats = this.priceMonitor.getStats();
         logger.info("Price Monitor Statistics", priceStats);
+      }
+
+      // Log swap executor stats if enabled
+      if (this.swapExecutor) {
+        const swapStats = this.swapExecutor.getStats();
+        logger.info("Swap Executor Statistics", swapStats);
       }
     }, interval);
   }
@@ -223,6 +278,11 @@ class PolyBot {
     // Stop price monitoring
     if (this.priceMonitor) {
       this.priceMonitor.stop();
+    }
+
+    // Stop swap API
+    if (this.swapAPI) {
+      await this.swapAPI.stop();
     }
 
     // Disconnect from RPC

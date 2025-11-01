@@ -9,6 +9,7 @@ import TransactionEnricher from "../core/TransactionEnricher.js";
  */
 class TransactionMonitor {
   constructor(provider, options = {}) {
+    /** @type {import('ethers').WebSocketProvider} */
     this.provider = provider;
     this.options = {
       monitorPending: options.monitorPending !== false, // Default true

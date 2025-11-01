@@ -1,0 +1,343 @@
+import express from 'express';
+import Logger from '../utils/logger.js';
+import SwapValidator from '../utils/SwapValidator.js';
+
+/**
+ * SwapAPI - REST API for swap execution
+ * Provides endpoints for executing swaps and getting quotes
+ */
+class SwapAPI {
+  constructor(swapExecutor, options = {}) {
+    this.swapExecutor = swapExecutor;
+    this.options = {
+      port: options.port || 3000,
+      host: options.host || 'localhost',
+      apiKey: options.apiKey || null, // API key for authentication
+      rateLimit: options.rateLimit || { maxRequests: 100, windowMs: 60000 }, // 100 requests per minute
+      ...options
+    };
+
+    this.logger = new Logger('SwapAPI');
+    this.validator = new SwapValidator(options.validation || {});
+    this.app = express();
+    this.server = null;
+
+    // Rate limiting state
+    this.rateLimitState = new Map();
+
+    this._setupMiddleware();
+    this._setupRoutes();
+  }
+
+  /**
+   * Setup Express middleware
+   */
+  _setupMiddleware() {
+    // Parse JSON bodies
+    this.app.use(express.json());
+
+    // Request logging
+    this.app.use((req, res, next) => {
+      this.logger.info(`${req.method} ${req.path}`, {
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
+      next();
+    });
+
+    // API key authentication
+    if (this.options.apiKey) {
+      this.app.use((req, res, next) => {
+        // Skip authentication for health check
+        if (req.path === '/health') {
+          return next();
+        }
+
+        const providedKey = req.headers['x-api-key'] || req.query.apiKey;
+        if (providedKey !== this.options.apiKey) {
+          this.logger.warn('Unauthorized API access attempt', {
+            ip: req.ip,
+            path: req.path
+          });
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized',
+            message: 'Invalid or missing API key'
+          });
+        }
+        next();
+      });
+    }
+
+    // Rate limiting
+    this.app.use((req, res, next) => {
+      if (req.path === '/health') {
+        return next();
+      }
+
+      const clientId = req.ip;
+      const now = Date.now();
+      const windowMs = this.options.rateLimit.windowMs;
+      const maxRequests = this.options.rateLimit.maxRequests;
+
+      // Get or create client state
+      let clientState = this.rateLimitState.get(clientId);
+      if (!clientState) {
+        clientState = { requests: [], windowStart: now };
+        this.rateLimitState.set(clientId, clientState);
+      }
+
+      // Clean old requests
+      clientState.requests = clientState.requests.filter(
+        timestamp => now - timestamp < windowMs
+      );
+
+      // Check rate limit
+      if (clientState.requests.length >= maxRequests) {
+        this.logger.warn('Rate limit exceeded', {
+          ip: clientId,
+          requests: clientState.requests.length
+        });
+        return res.status(429).json({
+          success: false,
+          error: 'Rate limit exceeded',
+          message: `Maximum ${maxRequests} requests per ${windowMs / 1000} seconds`
+        });
+      }
+
+      // Add current request
+      clientState.requests.push(now);
+      next();
+    });
+
+    // Error handling
+    this.app.use((err, req, res, next) => {
+      this.logger.error('API error', err);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: err.message
+      });
+    });
+  }
+
+  /**
+   * Setup API routes
+   */
+  _setupRoutes() {
+    // Health check
+    this.app.get('/health', (req, res) => {
+      res.json({
+        success: true,
+        status: 'healthy',
+        timestamp: Date.now(),
+        uptime: process.uptime()
+      });
+    });
+
+    // Get available routers
+    this.app.get('/api/v1/routers', (req, res) => {
+      try {
+        const routers = this.swapExecutor.getAvailableRouters();
+        res.json({
+          success: true,
+          routers,
+          count: routers.length
+        });
+      } catch (error) {
+        this.logger.error('Failed to get routers', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Get swap quote
+    this.app.post('/api/v1/swap/quote', async (req, res) => {
+      try {
+        // Validate request
+        const validation = this.validator.validateQuote(req.body);
+        if (!validation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: 'Validation failed',
+            details: validation.errors
+          });
+        }
+
+        // Get quote
+        const quote = await this.swapExecutor.getSwapQuote(req.body);
+        res.json(quote);
+      } catch (error) {
+        this.logger.error('Failed to get quote', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Execute swap
+    this.app.post('/api/v1/swap/execute', async (req, res) => {
+      try {
+        // Validate request
+        const validation = this.validator.validate(req.body);
+        if (!validation.valid) {
+          return res.status(400).json({
+            success: false,
+            error: 'Validation failed',
+            details: validation.errors
+          });
+        }
+
+        this.logger.info('Executing swap via API', {
+          dex: req.body.dexName,
+          tokenIn: req.body.tokenIn,
+          tokenOut: req.body.tokenOut,
+          amount: req.body.amountIn
+        });
+
+        // Execute swap
+        const result = await this.swapExecutor.executeSwap(req.body);
+
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+      } catch (error) {
+        this.logger.error('Failed to execute swap', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Get executor stats
+    this.app.get('/api/v1/stats', (req, res) => {
+      try {
+        const stats = this.swapExecutor.getStats();
+        res.json({
+          success: true,
+          stats
+        });
+      } catch (error) {
+        this.logger.error('Failed to get stats', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Reset stats (protected endpoint)
+    this.app.post('/api/v1/stats/reset', (req, res) => {
+      try {
+        this.swapExecutor.resetStats();
+        res.json({
+          success: true,
+          message: 'Statistics reset successfully'
+        });
+      } catch (error) {
+        this.logger.error('Failed to reset stats', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Get validator config
+    this.app.get('/api/v1/config/validator', (req, res) => {
+      try {
+        const config = this.validator.getConfig();
+        res.json({
+          success: true,
+          config
+        });
+      } catch (error) {
+        this.logger.error('Failed to get validator config', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // 404 handler
+    this.app.use((req, res) => {
+      res.status(404).json({
+        success: false,
+        error: 'Not found',
+        message: `Route ${req.method} ${req.path} not found`
+      });
+    });
+  }
+
+  /**
+   * Start API server
+   */
+  async start() {
+    return new Promise((resolve, reject) => {
+      try {
+        this.server = this.app.listen(this.options.port, this.options.host, () => {
+          this.logger.info('Swap API server started', {
+            host: this.options.host,
+            port: this.options.port,
+            apiKeyRequired: !!this.options.apiKey
+          });
+          resolve();
+        });
+
+        this.server.on('error', (error) => {
+          this.logger.error('API server error', error);
+          reject(error);
+        });
+      } catch (error) {
+        this.logger.error('Failed to start API server', error);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Stop API server
+   */
+  async stop() {
+    return new Promise((resolve) => {
+      if (this.server) {
+        this.server.close(() => {
+          this.logger.info('Swap API server stopped');
+          resolve();
+        });
+      } else {
+        resolve();
+      }
+    });
+  }
+
+  /**
+   * Get server info
+   */
+  getInfo() {
+    return {
+      host: this.options.host,
+      port: this.options.port,
+      apiKeyRequired: !!this.options.apiKey,
+      rateLimit: this.options.rateLimit,
+      endpoints: [
+        'GET /health',
+        'GET /api/v1/routers',
+        'POST /api/v1/swap/quote',
+        'POST /api/v1/swap/execute',
+        'GET /api/v1/stats',
+        'POST /api/v1/stats/reset',
+        'GET /api/v1/config/validator'
+      ]
+    };
+  }
+}
+
+export default SwapAPI;

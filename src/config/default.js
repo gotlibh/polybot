@@ -7,12 +7,14 @@ export default {
   rpc: {
     url:
       process.env.RPC_URL ||
-      "wss://polygon-mainnet.g.alchemy.com/v2/wowndxPeV_wApZY_Ulv28NIxnq2R3Gw0" ||
+      // "wss://polygon-mainnet.g.alchemy.com/v2/wowndxPeV_wApZY_Ulv28NIxnq2R3Gw0" ||
       "ws://192.168.1.10:8546",
     reconnect: true,
     reconnectDelay: 5000,
     maxReconnectAttempts: 10,
   },
+
+  statsEnabled: false,
 
   // Transaction Monitoring Configuration
   monitor: {
@@ -94,7 +96,7 @@ export default {
 
   // DEX Price Monitoring Configuration
   dexPrices: {
-    enabled: true, // Enable/disable DEX price monitoring
+    enabled: false, // Enable/disable DEX price monitoring
     interval: 3000, // Query interval in milliseconds (30 seconds)
     baseAmount: "1000000000000000000", // Base amount for price queries (1 token with 18 decimals)
 
@@ -182,6 +184,106 @@ export default {
         tokenOutDecimals: 18,
         enabled: false,
       },
+      {
+        name: "TEL/USDC",
+        tokenIn: "0xdF7837DE1F2Fa4631D716CF2502f8b230F1dcc32", // TEL
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "TEL",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 2, // שים לב - לטוקן הזה רק 2 דצימלים!
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "DOGA/USDC",
+        tokenIn: "0xdda40cdfe4a0090f42ff49f264a831402adb801a", // DOGA
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "DOGA",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "XCAD/USDT",
+        tokenIn: "0x4318f6a6a1e6a2a02e0d2f6cbf48a1e6b17b57d8", // XCAD
+        tokenOut: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", // USDT
+        tokenInSymbol: "XCAD",
+        tokenOutSymbol: "USDT",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "GAME/USDC",
+        tokenIn: "0x1c7bA6b24A514dC2b4C76f77820d8C910A8A9fF9", // GAME Credits
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "GAME",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "MATICX/WPOL",
+        tokenIn: "0xfa68FB4628DFF1028CF9bB9fD97dFddD93dE1E3E", // MATICX (Staked MATIC)
+        tokenOut: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC / WPOL
+        tokenInSymbol: "MATICX",
+        tokenOutSymbol: "WPOL",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 18,
+        enabled: false,
+      },
+      {
+        name: "PAW/WPOL",
+        tokenIn: "0x1D921368a6f28da5cF3D4c71b8a0BFD8D8bA67E3", // PAW
+        tokenOut: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC
+        tokenInSymbol: "PAW",
+        tokenOutSymbol: "WPOL",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 18,
+        enabled: false,
+      },
+      {
+        name: "GHST/USDC",
+        tokenIn: "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7", // GHST (Aavegotchi)
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "GHST",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "SAND/USDT",
+        tokenIn: "0xbbba073c31bf03b8acf7c28ef0738decf3695683", // SAND
+        tokenOut: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", // sUSDT
+        tokenInSymbol: "SAND",
+        tokenOutSymbol: "USDT",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "REVV/WPOL",
+        tokenIn: "0x70C006878a5A50Ed185ac4C87d837633923De296", // REVV
+        tokenOut: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC
+        tokenInSymbol: "REVV",
+        tokenOutSymbol: "WPOL",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 18,
+        enabled: false,
+      },
+      {
+        name: "BANANA/USDC",
+        tokenIn: "0x5d47baba0d66083c52009271faf3f50dcc01023c", // BANANA (ApeSwap)
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "BANANA",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+        enabled: false,
+      },
     ],
 
     // Display configuration
@@ -190,6 +292,43 @@ export default {
       style: "table", // 'table' or 'detailed'
       showReserves: true,
       showAmounts: true,
+    },
+  },
+
+  // Swap Execution Configuration
+  swap: {
+    enabled: true, // Enable/disable swap API (IMPORTANT: Set to true to enable swap functionality)
+
+    // Executor Configuration
+    executor: {
+      maxSlippage: 0.5, // Default slippage tolerance in %
+      deadlineMinutes: 20, // Default deadline in minutes
+      gasLimitBuffer: 1.2, // Gas limit buffer multiplier (20% extra)
+    },
+
+    // Validator Configuration
+    validation: {
+      maxSlippage: 5, // Maximum allowed slippage in %
+      minSlippage: 0.1, // Minimum allowed slippage in %
+      maxDeadlineMinutes: 60, // Maximum deadline in minutes
+      minDeadlineMinutes: 1, // Minimum deadline in minutes
+      maxGasPrice: 500, // Maximum gas price in gwei
+      allowedDexes: [], // Empty array = all DEXes allowed, or specify: ['QuickSwap', 'SushiSwap']
+      allowedTokens: [], // Empty array = all tokens allowed, or specify token addresses
+      requireRecipientWhitelist: false, // Require recipient to be in whitelist
+      recipientWhitelist: [], // Allowed recipient addresses
+    },
+
+    // API Configuration
+    api: {
+      enabled: true, // Enable/disable REST API
+      port: 30000, // API server port
+      host: "localhost", // API server host
+      apiKey: process.env.SWAP_API_KEY || null, // API key for authentication (set via environment variable)
+      rateLimit: {
+        maxRequests: 100, // Maximum requests per window
+        windowMs: 60000, // Time window in milliseconds (60 seconds)
+      },
     },
   },
 
