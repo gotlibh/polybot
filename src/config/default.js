@@ -98,23 +98,49 @@ export default {
     interval: 3000, // Query interval in milliseconds (30 seconds)
     baseAmount: "1000000000000000000", // Base amount for price queries (1 token with 18 decimals)
 
-    // DEX Routers to query (Uniswap V2 compatible)
+    // DEX Routers to query (Uniswap V2 compatible only)
+    // Note: Only verified Polygon mainnet Uniswap V2 compatible routers
+    // Set enabled: true/false to enable/disable individual DEXes
     dexRouters: [
       {
         name: "QuickSwap",
         address: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+        enabled: true, // QuickSwap V2 Router (verified)
       },
       {
         name: "SushiSwap",
-        address: "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506",
+        address: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+        enabled: true, // SushiSwap Router (verified)
       },
       {
-        name: "Uniswap V3",
-        address: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+        name: "ApeSwap",
+        address: "0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607",
+        enabled: true, // ApeSwap Router (not verified)
+      },
+      {
+        name: "Dfyn",
+        address: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+        enabled: true, // Dfyn Router V2 (verified)
+      },
+      {
+        name: "Polycat Finance",
+        address: "0x94930a328162957FF1dd48900aF67B5439336cBD",
+        enabled: true, // Polycat Router (verified)
+      },
+      {
+        name: "Cometh",
+        address: "0x93bcDc45f7e62f89a8e901DC4A0E2c6C427D9F25",
+        enabled: false, // Cometh Router (unverified)
+      },
+      {
+        name: "JetSwap",
+        address: "0x5C6EC38fb0e2609672BDf628B1fD605A523E5923",
+        enabled: true, // JetSwap Router (unverified)
       },
     ],
 
     // Trading pairs to monitor
+    // Set enabled: true/false to enable/disable individual pairs
     tradingPairs: [
       {
         name: "WMATIC/USDC",
@@ -124,6 +150,7 @@ export default {
         tokenOutSymbol: "USDC",
         tokenInDecimals: 18,
         tokenOutDecimals: 6,
+        enabled: true,
       },
       {
         name: "WETH/USDC",
@@ -133,6 +160,7 @@ export default {
         tokenOutSymbol: "USDC",
         tokenInDecimals: 18,
         tokenOutDecimals: 6,
+        enabled: false,
       },
       {
         name: "WMATIC/USDT",
@@ -142,6 +170,17 @@ export default {
         tokenOutSymbol: "USDT",
         tokenInDecimals: 18,
         tokenOutDecimals: 6,
+        enabled: false,
+      },
+      {
+        name: "POL/WETH",
+        tokenIn: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // POL (WMATIC - same address on Polygon)
+        tokenOut: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", // WETH
+        tokenInSymbol: "POL",
+        tokenOutSymbol: "WETH",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 18,
+        enabled: false,
       },
     ],
 

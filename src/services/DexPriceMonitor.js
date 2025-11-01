@@ -39,11 +39,21 @@ class DexPriceMonitor {
    * Initialize DEX contracts
    */
   async initialize() {
+    const enabledRouters = this.options.dexRouters.filter(r => r.enabled !== false);
+
     this.logger.info('Initializing DEX contracts', {
-      routerCount: this.options.dexRouters.length
+      totalRouters: this.options.dexRouters.length,
+      enabledRouters: enabledRouters.length,
+      disabledRouters: this.options.dexRouters.length - enabledRouters.length
     });
 
     for (const dexConfig of this.options.dexRouters) {
+      // Skip disabled DEXes
+      if (dexConfig.enabled === false) {
+        this.logger.info(`Skipping disabled DEX: ${dexConfig.name}`);
+        continue;
+      }
+
       try {
         const router = new Contract(dexConfig.address, UNISWAP_V2_ROUTER_ABI, this.provider);
         this.routers.set(dexConfig.name, { contract: router, config: dexConfig });
@@ -90,10 +100,21 @@ class DexPriceMonitor {
     try {
       await this.initialize();
 
+      const enabledPairs = this.options.tradingPairs.filter(p => p.enabled !== false);
+      const disabledPairs = this.options.tradingPairs.filter(p => p.enabled === false);
+
       this.logger.info('Starting DEX price monitoring', {
         interval: `${this.options.interval}ms`,
-        pairCount: this.options.tradingPairs.length
+        totalPairs: this.options.tradingPairs.length,
+        enabledPairs: enabledPairs.length,
+        disabledPairs: disabledPairs.length
       });
+
+      if (disabledPairs.length > 0) {
+        this.logger.info('Disabled trading pairs:', {
+          pairs: disabledPairs.map(p => p.name).join(', ')
+        });
+      }
 
       this.isMonitoring = true;
       this.stats.startTime = Date.now();
@@ -147,6 +168,11 @@ class DexPriceMonitor {
     const results = [];
 
     for (const pair of this.options.tradingPairs) {
+      // Skip disabled pairs
+      if (pair.enabled === false) {
+        continue;
+      }
+
       for (const [dexName, routerInfo] of this.routers) {
         try {
           const priceInfo = await this.queryPairPrice(dexName, pair);
