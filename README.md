@@ -47,6 +47,15 @@ In the function enrichTransaction the tx param is a hash not an object, look at 
 ----- BP-005 - Map addresses to names
 Now the address are just some 0x codes, I want to be be able to map addresses to names, Maybe it would be a good idea to map it in a file somehow and loading it on start, I want to be able to print the address and the name, I also want address to be handle by groups, for ex. myAddresses, quickSwap address, etc.
 
+--- BP-008 - get DEX prices
+Now I want to have the ability to get DEX prices for ex from uniswap quickswap etc.
+So I want the ability to get the pricees by getAmountOut, getAmountIn, getReservs, getPair
+
+for now I want to be able to enable the request in the configuration file and request it each
+x seconds as defined in the config, I also want to print it in case its enabled
+
+in the config I will define a list of address of DEX to be requsted
+
 ------- Pending prompt
 
 add APIs to be able to connect to the service and

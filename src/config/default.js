@@ -17,7 +17,7 @@ export default {
   // Transaction Monitoring Configuration
   monitor: {
     monitorPending: false, // Monitor mempool transactions
-    monitorConfirmed: true, // Monitor confirmed transactions in blocks
+    monitorConfirmed: false, // Monitor confirmed transactions in blocks
     enrichTransactions: false, // Fetch transaction receipts for detailed information
     batchSize: 1, // Process transactions individually
   },
@@ -31,7 +31,7 @@ export default {
     //   ['@allDexes'] - All DEX contracts
     //   ['@myAddresses', '@quickswap'] - Your wallets and QuickSwap
     //   ['0x123...', '@myAddresses'] - Mix of individual addresses and groups
-    addresses: ['@allDexes'], // Monitor any tx from/to all DEXes
+    addresses: ["@allDexes"], // Monitor any tx from/to all DEXes
 
     // Alternative: use specific from/to filters
     // fromAddresses: ['@myAddresses'], // Only monitor tx FROM your wallets
@@ -90,6 +90,68 @@ export default {
     groupByCategory: true, // Group fields by category
     maxHashLength: 66, // Full hash (set to 20 for shortened: 0x1234...5678)
     maxAddressLength: 42, // Full address (set to 10 for shortened: 0x1234...5678)
+  },
+
+  // DEX Price Monitoring Configuration
+  dexPrices: {
+    enabled: true, // Enable/disable DEX price monitoring
+    interval: 3000, // Query interval in milliseconds (30 seconds)
+    baseAmount: "1000000000000000000", // Base amount for price queries (1 token with 18 decimals)
+
+    // DEX Routers to query (Uniswap V2 compatible)
+    dexRouters: [
+      {
+        name: "QuickSwap",
+        address: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+      },
+      {
+        name: "SushiSwap",
+        address: "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506",
+      },
+      {
+        name: "Uniswap V3",
+        address: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      },
+    ],
+
+    // Trading pairs to monitor
+    tradingPairs: [
+      {
+        name: "WMATIC/USDC",
+        tokenIn: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "WMATIC",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+      },
+      {
+        name: "WETH/USDC",
+        tokenIn: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", // WETH
+        tokenOut: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        tokenInSymbol: "WETH",
+        tokenOutSymbol: "USDC",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+      },
+      {
+        name: "WMATIC/USDT",
+        tokenIn: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC
+        tokenOut: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", // USDT
+        tokenInSymbol: "WMATIC",
+        tokenOutSymbol: "USDT",
+        tokenInDecimals: 18,
+        tokenOutDecimals: 6,
+      },
+    ],
+
+    // Display configuration
+    display: {
+      enabled: true, // Show prices in console
+      style: "table", // 'table' or 'detailed'
+      showReserves: true,
+      showAmounts: true,
+    },
   },
 
   // Performance Configuration

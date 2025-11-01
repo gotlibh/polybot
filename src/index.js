@@ -1,7 +1,9 @@
 import RpcProvider from "./core/RpcProvider.js";
 import TransactionMonitor from "./services/TransactionMonitor.js";
+import DexPriceMonitor from "./services/DexPriceMonitor.js";
 import Logger from "./utils/logger.js";
 import OutputFormatter from "./utils/OutputFormatter.js";
+import PriceFormatter from "./utils/PriceFormatter.js";
 import AddressMapper from "./utils/AddressMapper.js";
 import config from "./config/default.js";
 import addressConfig from "./config/addresses.js";
@@ -64,7 +66,9 @@ class PolyBot {
     this.config = config;
     this.rpcProvider = null;
     this.monitor = null;
+    this.priceMonitor = null;
     this.formatter = new OutputFormatter(config.output || {});
+    this.priceFormatter = new PriceFormatter(config.dexPrices?.display || {});
     this.isRunning = false;
   }
 
@@ -105,6 +109,15 @@ class PolyBot {
 
       // Start monitoring
       await this.monitor.start();
+
+      // Initialize and start DEX price monitoring if enabled
+      if (this.config.dexPrices?.enabled) {
+        this.priceMonitor = new DexPriceMonitor(provider, {
+          ...this.config.dexPrices,
+          onPriceUpdate: this._handlePriceUpdate.bind(this)
+        });
+        await this.priceMonitor.start();
+      }
 
       this.isRunning = true;
 
@@ -160,6 +173,16 @@ class PolyBot {
   }
 
   /**
+   * Handle DEX price updates
+   */
+  _handlePriceUpdate(priceData) {
+    if (this.config.dexPrices?.display?.enabled) {
+      const output = this.priceFormatter.format(priceData);
+      console.log(output);
+    }
+  }
+
+  /**
    * Start periodic stats reporting
    */
   _startStatsReporting() {
@@ -168,6 +191,12 @@ class PolyBot {
     this.statsInterval = setInterval(() => {
       const stats = this.monitor.getStats();
       logger.info("Monitor Statistics", stats);
+
+      // Log price monitor stats if enabled
+      if (this.priceMonitor) {
+        const priceStats = this.priceMonitor.getStats();
+        logger.info("Price Monitor Statistics", priceStats);
+      }
     }, interval);
   }
 
@@ -189,6 +218,11 @@ class PolyBot {
     // Stop monitoring
     if (this.monitor) {
       await this.monitor.stop();
+    }
+
+    // Stop price monitoring
+    if (this.priceMonitor) {
+      this.priceMonitor.stop();
     }
 
     // Disconnect from RPC
