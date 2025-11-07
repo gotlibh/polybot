@@ -172,8 +172,14 @@ class SwapAPI {
           });
         }
 
-        // Get quote
-        const quote = await this.swapExecutor.getSwapQuote(normalizedParams);
+        // Check if single or multi-DEX quote
+        const isMultiDex = Array.isArray(normalizedParams.dexName);
+
+        // Get quote(s)
+        const quote = isMultiDex
+          ? await this.swapExecutor.getMultiDexQuote(normalizedParams)
+          : await this.swapExecutor.getSwapQuote(normalizedParams);
+
         res.json(quote);
       } catch (error) {
         this.logger.error('Failed to get quote', error);

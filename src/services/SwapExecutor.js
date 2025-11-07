@@ -506,6 +506,118 @@ class SwapExecutor {
   }
 
   /**
+   * Get quotes from multiple DEXes
+   * @param {Object} params - Quote parameters with dexName as array
+   * @returns {Promise<Object>} - Aggregated quotes with comparison data
+   */
+  async getMultiDexQuote(params) {
+    try {
+      // Ensure dexName is an array
+      const dexNames = Array.isArray(params.dexName) ? params.dexName : [params.dexName];
+
+      this.logger.info('Getting multi-DEX quotes', {
+        dexes: dexNames,
+        tokenIn: params.tokenInSymbol || params.tokenIn,
+        tokenOut: params.tokenOutSymbol || params.tokenOut,
+        amountIn: params.amountIn
+      });
+
+      // Query all DEXes in parallel
+      const quotePromises = dexNames.map(dexName =>
+        this.getSwapQuote({ ...params, dexName })
+          .catch(error => ({
+            success: false,
+            dex: dexName,
+            error: error.message,
+            timestamp: Date.now()
+          }))
+      );
+
+      const quotes = await Promise.all(quotePromises);
+
+      // Filter successful quotes
+      const validQuotes = quotes.filter(q => q.success);
+      const failedQuotes = quotes.filter(q => !q.success);
+
+      if (validQuotes.length === 0) {
+        return {
+          success: false,
+          error: 'All DEX quotes failed',
+          failedQuotes,
+          timestamp: Date.now()
+        };
+      }
+
+      // Parse amounts for comparison
+      const quotesWithParsedAmounts = validQuotes.map(q => ({
+        ...q,
+        expectedAmountOutNum: parseFloat(q.expectedAmountOut)
+      }));
+
+      // Sort by expected output (descending)
+      quotesWithParsedAmounts.sort((a, b) => b.expectedAmountOutNum - a.expectedAmountOutNum);
+
+      // Get best and worst
+      const bestQuote = quotesWithParsedAmounts[0];
+      const worstQuote = quotesWithParsedAmounts[quotesWithParsedAmounts.length - 1];
+
+      // Calculate price spread
+      const bestPrice = bestQuote.expectedAmountOutNum;
+      const worstPrice = worstQuote.expectedAmountOutNum;
+      const spread = worstPrice > 0 ? ((bestPrice - worstPrice) / worstPrice * 100).toFixed(4) : '0';
+
+      // Calculate average price
+      const avgPrice = (
+        quotesWithParsedAmounts.reduce((sum, q) => sum + q.expectedAmountOutNum, 0) / validQuotes.length
+      ).toFixed(6);
+
+      // Build comparison data
+      const comparison = {
+        bestDex: bestQuote.dex,
+        bestPrice: bestQuote.expectedAmountOut,
+        bestExchangeRate: bestQuote.exchangeRate,
+        worstDex: worstQuote.dex,
+        worstPrice: worstQuote.expectedAmountOut,
+        worstExchangeRate: worstQuote.exchangeRate,
+        averagePrice: avgPrice,
+        priceSpread: `${spread}%`,
+        totalDexesQueried: dexNames.length,
+        successfulQuotes: validQuotes.length,
+        failedQuotes: failedQuotes.length
+      };
+
+      // Add arbitrage opportunity flag
+      const arbThreshold = 0.5; // 0.5% difference considered arbitrage opportunity
+      const hasArbOpportunity = parseFloat(spread) > arbThreshold;
+
+      return {
+        success: true,
+        tokenIn: params.tokenIn,
+        tokenOut: params.tokenOut,
+        tokenInSymbol: params.tokenInSymbol || 'TOKEN',
+        tokenOutSymbol: params.tokenOutSymbol || 'TOKEN',
+        amountIn: params.amountIn,
+        quotes: quotesWithParsedAmounts.map(q => {
+          // Remove the parsed amount from response
+          const { expectedAmountOutNum, ...rest } = q;
+          return rest;
+        }),
+        comparison,
+        arbitrageOpportunity: hasArbOpportunity,
+        failedQuotes: failedQuotes.length > 0 ? failedQuotes : undefined,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      this.logger.error('Failed to get multi-DEX quotes', error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
+
+  /**
    * Calculate price impact (simplified)
    */
   _calculatePriceImpact(amountIn, amountOut, params) {

@@ -64,14 +64,20 @@ class SwapValidator {
       });
 
     // Build DEX name validator with optional whitelist
-    let dexNameValidator = Joi.string().required();
+    let dexNameStringValidator = Joi.string().required();
     if (this.options.allowedDexes.length > 0) {
-      dexNameValidator = dexNameValidator
+      dexNameStringValidator = dexNameStringValidator
         .valid(...this.options.allowedDexes)
         .messages({
           'any.only': `{{#label}} must be one of: ${this.options.allowedDexes.join(', ')}`
         });
     }
+
+    // DEX name can be either a single string or an array of strings
+    const dexNameValidator = Joi.alternatives().try(
+      dexNameStringValidator,
+      Joi.array().items(dexNameStringValidator).min(1).required()
+    );
 
     // Build token address validator with optional whitelist
     const buildTokenValidator = () => {

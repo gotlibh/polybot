@@ -164,15 +164,144 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
   "dex": "QuickSwap",
   "tokenIn": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
   "tokenOut": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  "tokenInSymbol": "WMATIC",
+  "tokenOutSymbol": "USDC",
   "amountIn": "1.5",
   "expectedAmountOut": "0.825",
   "minAmountOut": "0.82088",
+  "exchangeRate": "1 WMATIC = 0.550000 USDC",
+  "reserves": {
+    "WMATIC": "1250000.5",
+    "USDC": "687500.25",
+    "pairAddress": "0x6e7a5FAFcec6BB1e78bAE2A1F0B612012BF14827"
+  },
   "slippage": "0.5%",
-  "priceImpact": "N/A",
+  "priceImpact": "0.0012%",
   "estimatedGas": "150000",
   "timestamp": 1699000000000
 }
 ```
+
+---
+
+### Get Multi-DEX Quote
+
+**POST** `/api/v1/swap/quote`
+
+Get quotes from multiple DEXes simultaneously to compare prices and find the best rate.
+
+**Request Body:**
+```json
+{
+  "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
+  "tokenIn": "USDC",
+  "tokenOut": "WBTC",
+  "amountIn": "100000"
+}
+```
+
+**Note:** Pass `dexName` as an array to query multiple DEXes. All other parameters remain the same as single DEX quotes.
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/v1/swap/quote \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dexName": ["QuickSwap", "SushiSwap"],
+    "tokenIn": "USDC",
+    "tokenOut": "WBTC",
+    "amountIn": "100000"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tokenIn": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  "tokenOut": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+  "tokenInSymbol": "USDC",
+  "tokenOutSymbol": "WBTC",
+  "amountIn": "100000",
+  "quotes": [
+    {
+      "success": true,
+      "dex": "SushiSwap",
+      "tokenIn": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "tokenOut": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      "tokenInSymbol": "USDC",
+      "tokenOutSymbol": "WBTC",
+      "amountIn": "100000",
+      "expectedAmountOut": "1.586234",
+      "minAmountOut": "1.578293",
+      "exchangeRate": "1 USDC = 0.000016 WBTC",
+      "reserves": {
+        "USDC": "285000.5",
+        "WBTC": "4.25",
+        "pairAddress": "0x..."
+      },
+      "slippage": "0.5%",
+      "priceImpact": "35.0877%",
+      "estimatedGas": "150000",
+      "timestamp": 1699000000000
+    },
+    {
+      "success": true,
+      "dex": "QuickSwap",
+      "tokenIn": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "tokenOut": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      "tokenInSymbol": "USDC",
+      "tokenOutSymbol": "WBTC",
+      "amountIn": "100000",
+      "expectedAmountOut": "0.961538",
+      "minAmountOut": "0.956731",
+      "exchangeRate": "1 USDC = 0.000010 WBTC",
+      "reserves": {
+        "USDC": "175000.25",
+        "WBTC": "1.75",
+        "pairAddress": "0x..."
+      },
+      "slippage": "0.5%",
+      "priceImpact": "57.1429%",
+      "estimatedGas": "150000",
+      "timestamp": 1699000000000
+    }
+  ],
+  "comparison": {
+    "bestDex": "SushiSwap",
+    "bestPrice": "1.586234",
+    "bestExchangeRate": "1 USDC = 0.000016 WBTC",
+    "worstDex": "QuickSwap",
+    "worstPrice": "0.961538",
+    "worstExchangeRate": "1 USDC = 0.000010 WBTC",
+    "averagePrice": "1.273886",
+    "priceSpread": "64.9712%",
+    "totalDexesQueried": 2,
+    "successfulQuotes": 2,
+    "failedQuotes": 0
+  },
+  "arbitrageOpportunity": true,
+  "timestamp": 1699000000000
+}
+```
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `quotes` | Array of individual quote results from each DEX |
+| `comparison.bestDex` | DEX offering the best rate |
+| `comparison.bestPrice` | Highest output amount |
+| `comparison.worstDex` | DEX offering the worst rate |
+| `comparison.worstPrice` | Lowest output amount |
+| `comparison.averagePrice` | Average output across all DEXes |
+| `comparison.priceSpread` | Percentage difference between best and worst |
+| `comparison.totalDexesQueried` | Total number of DEXes queried |
+| `comparison.successfulQuotes` | Number of successful quotes |
+| `comparison.failedQuotes` | Number of failed quotes |
+| `arbitrageOpportunity` | `true` if price spread > 0.5% |
+| `failedQuotes` | Array of failed quotes (if any) |
 
 ---
 
