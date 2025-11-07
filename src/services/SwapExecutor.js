@@ -14,6 +14,7 @@ class SwapExecutor {
       maxSlippage: options.maxSlippage || 0.5, // Default 0.5% slippage
       deadlineMinutes: options.deadlineMinutes || 20, // Default 20 minutes
       gasLimitBuffer: options.gasLimitBuffer || 1.2, // 20% buffer on gas estimates
+      arbitrageCacheTTL: options.arbitrageCacheTTL || 300000, // 5 minutes default
       ...options
     };
 
@@ -21,12 +22,89 @@ class SwapExecutor {
     this.tokenResolver = new TokenResolver(provider);
     this.routers = new Map();
 
+    // Cache for arbitrage opportunities
+    this.arbitrageCache = new Map();
+
     this.stats = {
       totalSwaps: 0,
       successfulSwaps: 0,
       failedSwaps: 0,
       totalVolumeUSD: 0
     };
+  }
+
+  /**
+   * Generate unique ID for arbitrage opportunity
+   */
+  _generateArbitrageId() {
+    return `arb_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  /**
+   * Store arbitrage opportunity in cache
+   * @param {Object} opportunity - Arbitrage opportunity details
+   * @returns {string} - Generated ID
+   */
+  _cacheArbitrageOpportunity(opportunity) {
+    const id = this._generateArbitrageId();
+    const expiresAt = Date.now() + this.options.arbitrageCacheTTL;
+
+    this.arbitrageCache.set(id, {
+      ...opportunity,
+      id,
+      cachedAt: Date.now(),
+      expiresAt
+    });
+
+    this.logger.debug('Cached arbitrage opportunity', {
+      id,
+      pair: opportunity.pair,
+      profitPercentage: opportunity.profitLossPercentage,
+      expiresIn: `${this.options.arbitrageCacheTTL / 1000}s`
+    });
+
+    return id;
+  }
+
+  /**
+   * Get arbitrage opportunity from cache
+   * @param {string} id - Arbitrage opportunity ID
+   * @returns {Object|null} - Cached opportunity or null if not found/expired
+   */
+  getArbitrageOpportunity(id) {
+    const opportunity = this.arbitrageCache.get(id);
+
+    if (!opportunity) {
+      return null;
+    }
+
+    // Check if expired
+    if (Date.now() > opportunity.expiresAt) {
+      this.arbitrageCache.delete(id);
+      this.logger.debug('Arbitrage opportunity expired', { id });
+      return null;
+    }
+
+    return opportunity;
+  }
+
+  /**
+   * Clean expired opportunities from cache
+   */
+  _cleanExpiredOpportunities() {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [id, opp] of this.arbitrageCache.entries()) {
+      if (now > opp.expiresAt) {
+        this.arbitrageCache.delete(id);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      this.logger.debug(`Cleaned ${cleaned} expired arbitrage opportunities`);
+    }
   }
 
   /**
@@ -861,7 +939,8 @@ class SwapExecutor {
               bestProfit: analysis.summary.bestProfit,
               bestProfitPercentage: analysis.summary.bestProfitPercentage,
               bestProfitPath: analysis.summary.bestProfitPath,
-              totalOpportunities: analysis.summary.totalOpportunities
+              totalOpportunities: analysis.summary.totalOpportunities,
+              opportunity: analysis.bestProfitableOpportunity
             };
 
             scanResults.push(result);
@@ -903,11 +982,33 @@ class SwapExecutor {
         return profitB - profitA;
       });
 
+      // Clean expired opportunities before adding new ones
+      this._cleanExpiredOpportunities();
+
+      // Add unique IDs to all results with arbitrage and cache them
+      const allResultsWithIds = scanResults.filter(r => r.hasArbitrage).map(result => {
+        const id = this._cacheArbitrageOpportunity({
+          ...result,
+          scanParams: { dexNames, amountIn, slippage, minProfitPercentage }
+        });
+        return { ...result, id };
+      });
+
+      // Add IDs to profitable opportunities as well
+      const profitableWithIds = profitableOpportunities.slice(0, 20).map(result => {
+        // Check if already cached (should be)
+        const cached = Array.from(this.arbitrageCache.values()).find(
+          c => c.pair === result.pair && c.bestProfitPath === result.bestProfitPath
+        );
+        return { ...result, id: cached?.id || this._cacheArbitrageOpportunity(result) };
+      });
+
       this.logger.info('Arbitrage scan completed', {
         totalPairs: tokenPairs.length,
         scanned: scannedCount,
         errors: errorCount,
-        profitableFound: profitableOpportunities.length
+        profitableFound: profitableOpportunities.length,
+        cached: this.arbitrageCache.size
       });
 
       return {
@@ -917,16 +1018,181 @@ class SwapExecutor {
           scannedPairs: scannedCount,
           errorCount,
           profitableOpportunities: profitableOpportunities.length,
-          minProfitThreshold: `${minProfitPercentage}%`
+          minProfitThreshold: `${minProfitPercentage}%`,
+          cachedOpportunities: this.arbitrageCache.size
         },
         dexesAnalyzed: dexNames,
         initialAmount: amountIn,
-        profitableOpportunities: profitableOpportunities.slice(0, 20), // Return top 20
-        allResults: scanResults.filter(r => r.hasArbitrage), // Only return pairs with any arbitrage
+        profitableOpportunities: profitableWithIds,
+        allResults: allResultsWithIds,
         timestamp: Date.now()
       };
     } catch (error) {
       this.logger.error('Failed to scan for arbitrage', error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
+
+  /**
+   * Execute arbitrage opportunity by ID
+   * @param {Object} params - Execution parameters
+   * @param {string} params.arbitrageId - Arbitrage opportunity ID
+   * @param {string} params.privateKey - Private key for signing transactions
+   * @param {string} [params.amountIn] - Optional: Override amount (uses cached amount if not provided)
+   * @param {number} [params.slippage] - Optional: Override slippage
+   * @returns {Promise<Object>} - Execution result with both swap transactions
+   */
+  async executeArbitrageById(params) {
+    try {
+      const { arbitrageId, privateKey, amountIn: overrideAmount, slippage: overrideSlippage } = params;
+
+      // Get cached opportunity
+      const opportunity = this.getArbitrageOpportunity(arbitrageId);
+
+      if (!opportunity) {
+        return {
+          success: false,
+          error: 'Arbitrage opportunity not found or expired',
+          message: 'The arbitrage ID is invalid or the opportunity has expired (TTL: 5 minutes)',
+          arbitrageId
+        };
+      }
+
+      this.logger.info('Executing arbitrage by ID', {
+        id: arbitrageId,
+        pair: opportunity.pair,
+        path: opportunity.bestProfitPath,
+        expectedProfit: opportunity.bestProfit
+      });
+
+      // Extract swap details from opportunity
+      const { token1, token2, opportunity: arbDetails } = opportunity;
+
+      if (!arbDetails) {
+        return {
+          success: false,
+          error: 'Invalid opportunity structure',
+          message: 'Arbitrage opportunity is missing execution details'
+        };
+      }
+
+      const { swapADetails, swapBDetails } = arbDetails;
+      const amountIn = overrideAmount || opportunity.scanParams?.amountIn || swapADetails.amountIn;
+      const slippage = overrideSlippage || opportunity.scanParams?.slippage;
+
+      // Execute first swap (A)
+      this.logger.info('Executing swap A', {
+        dex: swapADetails.dex,
+        from: swapADetails.from,
+        to: swapADetails.to,
+        amount: amountIn
+      });
+
+      const swapAResult = await this.executeSwap({
+        dexName: swapADetails.dex,
+        tokenIn: token1.address,
+        tokenOut: token2.address,
+        amountIn: amountIn,
+        tokenInDecimals: token1.decimals,
+        tokenOutDecimals: token2.decimals,
+        tokenInSymbol: token1.symbol,
+        tokenOutSymbol: token2.symbol,
+        privateKey,
+        slippage
+      });
+
+      if (!swapAResult.success) {
+        return {
+          success: false,
+          error: 'First swap failed',
+          swapA: swapAResult,
+          arbitrageId
+        };
+      }
+
+      // Use actual output from swap A for swap B
+      const actualAmountOut = swapAResult.amountOut || swapBDetails.amountIn;
+
+      this.logger.info('Executing swap B', {
+        dex: swapBDetails.dex,
+        from: swapBDetails.from,
+        to: swapBDetails.to,
+        amount: actualAmountOut
+      });
+
+      // Execute second swap (B)
+      const swapBResult = await this.executeSwap({
+        dexName: swapBDetails.dex,
+        tokenIn: token2.address,
+        tokenOut: token1.address,
+        amountIn: actualAmountOut,
+        tokenInDecimals: token2.decimals,
+        tokenOutDecimals: token1.decimals,
+        tokenInSymbol: token2.symbol,
+        tokenOutSymbol: token1.symbol,
+        privateKey,
+        slippage
+      });
+
+      if (!swapBResult.success) {
+        return {
+          success: false,
+          error: 'Second swap failed (first swap succeeded)',
+          swapA: swapAResult,
+          swapB: swapBResult,
+          warning: 'You may have partial position. Check your wallet.',
+          arbitrageId
+        };
+      }
+
+      // Calculate actual profit/loss
+      const finalAmount = parseFloat(swapBResult.amountOut);
+      const initialAmount = parseFloat(amountIn);
+      const actualProfit = finalAmount - initialAmount;
+      const actualProfitPercentage = ((actualProfit / initialAmount) * 100).toFixed(4);
+
+      // Remove from cache after successful execution
+      this.arbitrageCache.delete(arbitrageId);
+
+      this.logger.info('Arbitrage executed successfully', {
+        id: arbitrageId,
+        pair: opportunity.pair,
+        initialAmount: amountIn,
+        finalAmount: finalAmount.toFixed(token1.decimals),
+        actualProfit: actualProfit.toFixed(token1.decimals),
+        actualProfitPercentage: `${actualProfitPercentage}%`,
+        expectedProfit: opportunity.bestProfit,
+        expectedProfitPercentage: opportunity.bestProfitPercentage
+      });
+
+      return {
+        success: true,
+        arbitrageId,
+        pair: opportunity.pair,
+        path: opportunity.bestProfitPath,
+        swapA: swapAResult,
+        swapB: swapBResult,
+        profitAnalysis: {
+          initialAmount: amountIn,
+          finalAmount: finalAmount.toFixed(token1.decimals),
+          actualProfit: actualProfit.toFixed(token1.decimals),
+          actualProfitPercentage: `${actualProfitPercentage}%`,
+          expectedProfit: opportunity.bestProfit,
+          expectedProfitPercentage: opportunity.bestProfitPercentage,
+          profitToken: token1.symbol,
+          slippage: actualProfit < parseFloat(opportunity.bestProfit) ?
+            `Slippage: ${((parseFloat(opportunity.bestProfit) - actualProfit) / parseFloat(opportunity.bestProfit) * 100).toFixed(2)}%` :
+            'Better than expected'
+        },
+        timestamp: Date.now()
+      };
+
+    } catch (error) {
+      this.logger.error('Failed to execute arbitrage by ID', error);
       return {
         success: false,
         error: error.message,

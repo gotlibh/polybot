@@ -268,6 +268,56 @@ class SwapAPI {
       }
     });
 
+    // Execute arbitrage by ID
+    this.app.post('/api/v1/swap/execute-arbitrage', async (req, res) => {
+      try {
+        const { arbitrageId, privateKey, amountIn, slippage } = req.body;
+
+        // Validate required fields
+        if (!arbitrageId) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing arbitrageId',
+            message: 'arbitrageId is required'
+          });
+        }
+
+        if (!privateKey) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing privateKey',
+            message: 'privateKey is required for transaction signing'
+          });
+        }
+
+        this.logger.info('Executing arbitrage by ID via API', {
+          arbitrageId,
+          amountInOverride: amountIn || 'using cached',
+          slippageOverride: slippage || 'using cached'
+        });
+
+        // Execute arbitrage
+        const result = await this.swapExecutor.executeArbitrageById({
+          arbitrageId,
+          privateKey,
+          amountIn,
+          slippage
+        });
+
+        if (result.success) {
+          res.json(result);
+        } else {
+          res.status(400).json(result);
+        }
+      } catch (error) {
+        this.logger.error('Failed to execute arbitrage', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
     // Execute swap
     this.app.post('/api/v1/swap/execute', async (req, res) => {
       try {
@@ -497,6 +547,7 @@ class SwapAPI {
         'GET /api/v1/routers',
         'POST /api/v1/swap/quote',
         'POST /api/v1/swap/scan-arbitrage',
+        'POST /api/v1/swap/execute-arbitrage',
         'POST /api/v1/swap/execute',
         'GET /api/v1/stats',
         'POST /api/v1/stats/reset',

@@ -35,13 +35,13 @@ export default {
   },
 
   // Native & Wrapped
-  WMATIC: {
-    address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-    symbol: "WMATIC",
-    name: "Wrapped Matic",
-    decimals: 18,
-    type: "native",
-  },
+  // WMATIC: {
+  //   address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+  //   symbol: "WMATIC",
+  //   name: "Wrapped Matic",
+  //   decimals: 18,
+  //   type: "native",
+  // },
   WPOL: {
     address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
     symbol: "WPOL",
@@ -49,13 +49,13 @@ export default {
     decimals: 18,
     type: "native",
   },
-  POL: {
-    address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-    symbol: "POL",
-    name: "POL (WMATIC)",
-    decimals: 18,
-    type: "native",
-  },
+  // POL: {
+  //   address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+  //   symbol: "POL",
+  //   name: "POL (WMATIC)",
+  //   decimals: 18,
+  //   type: "native",
+  // },
   WETH: {
     address: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
     symbol: "WETH",

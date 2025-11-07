@@ -630,6 +630,142 @@ curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
 
 ---
 
+### Execute Arbitrage by ID
+
+**POST** `/api/v1/swap/execute-arbitrage`
+
+Execute a previously scanned arbitrage opportunity by its unique ID. This endpoint executes both swaps (round-trip) automatically.
+
+**Request Body:**
+```json
+{
+  "arbitrageId": "arb_1762508284502_a3b4c5d6e",
+  "privateKey": "0x...",
+  "amountIn": "100",
+  "slippage": 0.5
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `arbitrageId` | string | Yes | Unique ID from scan-arbitrage response |
+| `privateKey` | string | Yes | Private key for signing transactions |
+| `amountIn` | string | No | Override amount (uses cached if not provided) |
+| `slippage` | number | No | Override slippage % (uses cached if not provided) |
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/v1/swap/execute-arbitrage \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "arbitrageId": "arb_1762508284502_a3b4c5d6e",
+    "privateKey": "0x1234...",
+    "slippage": 0.5
+  }'
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "arbitrageId": "arb_1762508284502_a3b4c5d6e",
+  "pair": "WMATIC/UNI",
+  "path": "SushiSwap → QuickSwap",
+  "swapA": {
+    "success": true,
+    "dex": "SushiSwap",
+    "transactionHash": "0x...",
+    "tokenIn": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    "tokenOut": "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
+    "amountIn": "100",
+    "amountOut": "5.234567",
+    "gasUsed": "185000"
+  },
+  "swapB": {
+    "success": true,
+    "dex": "QuickSwap",
+    "transactionHash": "0x...",
+    "tokenIn": "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
+    "tokenOut": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    "amountIn": "5.234567",
+    "amountOut": "100.061505",
+    "gasUsed": "178000"
+  },
+  "profitAnalysis": {
+    "initialAmount": "100",
+    "finalAmount": "100.061505",
+    "actualProfit": "0.061505",
+    "actualProfitPercentage": "0.0615%",
+    "expectedProfit": "0.000061504893943937",
+    "expectedProfitPercentage": "0.0615%",
+    "profitToken": "WMATIC",
+    "slippage": "Better than expected"
+  },
+  "timestamp": 1762508320000
+}
+```
+
+**Response (Expired ID):**
+```json
+{
+  "success": false,
+  "error": "Arbitrage opportunity not found or expired",
+  "message": "The arbitrage ID is invalid or the opportunity has expired (TTL: 5 minutes)",
+  "arbitrageId": "arb_1762508284502_a3b4c5d6e"
+}
+```
+
+**Response (First Swap Failed):**
+```json
+{
+  "success": false,
+  "error": "First swap failed",
+  "swapA": {
+    "success": false,
+    "error": "Insufficient token balance"
+  },
+  "arbitrageId": "arb_1762508284502_a3b4c5d6e"
+}
+```
+
+**Response (Second Swap Failed):**
+```json
+{
+  "success": false,
+  "error": "Second swap failed (first swap succeeded)",
+  "warning": "You may have partial position. Check your wallet.",
+  "swapA": {
+    "success": true,
+    "transactionHash": "0x..."
+  },
+  "swapB": {
+    "success": false,
+    "error": "Insufficient liquidity"
+  },
+  "arbitrageId": "arb_1762508284502_a3b4c5d6e"
+}
+```
+
+**Important Notes:**
+
+- **TTL (Time To Live)**: Arbitrage IDs expire after 5 minutes by default
+- **Atomic Execution**: Both swaps are executed sequentially (not atomic - first swap must succeed before second)
+- **Partial Failure Risk**: If first swap succeeds but second fails, you'll have a partial position
+- **Price Movement**: Prices may have changed since the scan - actual profit may differ from expected
+- **Gas Costs**: Remember to account for gas costs when calculating net profit
+
+**Workflow:**
+
+1. Run `/api/v1/swap/scan-arbitrage` to find opportunities
+2. Pick an `id` from the `allResults` or `profitableOpportunities` array
+3. Execute immediately using `/api/v1/swap/execute-arbitrage` with that ID
+4. Monitor the result for both transaction hashes and profit analysis
+
+---
+
 ### Execute Swap
 
 **POST** `/api/v1/swap/execute`
