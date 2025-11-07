@@ -395,6 +395,42 @@ class SwapExecutor {
       const slippage = params.slippage || this.options.maxSlippage;
       const minAmountOut = (expectedAmountOut * BigInt(Math.floor((100 - slippage) * 100))) / 10000n;
 
+      // Get pair reserves
+      let reserves = null;
+      try {
+        const { UNISWAP_V2_FACTORY_ABI, UNISWAP_V2_PAIR_ABI } = await import('../abi/DexRouter.js');
+
+        // Get factory address
+        const factoryAddress = await router.factory();
+        const factory = new Contract(factoryAddress, UNISWAP_V2_FACTORY_ABI, this.provider);
+
+        // Get pair address
+        const pairAddress = await factory.getPair(params.tokenIn, params.tokenOut);
+
+        if (pairAddress && pairAddress !== '0x0000000000000000000000000000000000000000') {
+          const pair = new Contract(pairAddress, UNISWAP_V2_PAIR_ABI, this.provider);
+
+          // Get reserves and token order
+          const [reserve0, reserve1] = await pair.getReserves();
+          const token0 = await pair.token0();
+
+          // Determine which reserve is which token
+          const isToken0 = token0.toLowerCase() === params.tokenIn.toLowerCase();
+          const reserveIn = isToken0 ? reserve0 : reserve1;
+          const reserveOut = isToken0 ? reserve1 : reserve0;
+
+          reserves = {
+            reserveIn: formatUnits(reserveIn, params.tokenInDecimals),
+            reserveOut: formatUnits(reserveOut, params.tokenOutDecimals),
+            pairAddress
+          };
+        }
+      } catch (error) {
+        this.logger.debug('Failed to fetch reserves', {
+          error: error.message
+        });
+      }
+
       // Estimate gas
       let estimatedGas = null;
       try {
@@ -415,16 +451,47 @@ class SwapExecutor {
         });
       }
 
+      // Calculate exchange rate
+      const expectedOut = formatUnits(expectedAmountOut, params.tokenOutDecimals);
+      const amountInNum = parseFloat(params.amountIn);
+      const expectedOutNum = parseFloat(expectedOut);
+      const exchangeRate = amountInNum > 0 ? (expectedOutNum / amountInNum).toFixed(6) : '0';
+
+      // Calculate real price impact if reserves are available
+      let priceImpact = 'N/A';
+      if (reserves) {
+        const reserveInNum = parseFloat(reserves.reserveIn);
+        const reserveOutNum = parseFloat(reserves.reserveOut);
+
+        if (reserveInNum > 0 && reserveOutNum > 0) {
+          // Spot price before trade
+          const spotPrice = reserveOutNum / reserveInNum;
+          // Execution price
+          const executionPrice = expectedOutNum / amountInNum;
+          // Price impact
+          const impact = ((executionPrice - spotPrice) / spotPrice) * 100;
+          priceImpact = `${Math.abs(impact).toFixed(4)}%`;
+        }
+      }
+
       return {
         success: true,
         dex: params.dexName,
         tokenIn: params.tokenIn,
         tokenOut: params.tokenOut,
+        tokenInSymbol: params.tokenInSymbol || 'TOKEN',
+        tokenOutSymbol: params.tokenOutSymbol || 'TOKEN',
         amountIn: params.amountIn,
-        expectedAmountOut: formatUnits(expectedAmountOut, params.tokenOutDecimals),
+        expectedAmountOut: expectedOut,
         minAmountOut: formatUnits(minAmountOut, params.tokenOutDecimals),
+        exchangeRate: `1 ${params.tokenInSymbol || 'TOKEN'} = ${exchangeRate} ${params.tokenOutSymbol || 'TOKEN'}`,
+        reserves: reserves ? {
+          [params.tokenInSymbol || 'tokenIn']: reserves.reserveIn,
+          [params.tokenOutSymbol || 'tokenOut']: reserves.reserveOut,
+          pairAddress: reserves.pairAddress
+        } : null,
         slippage: `${slippage}%`,
-        priceImpact: this._calculatePriceImpact(amountInWei, expectedAmountOut, params),
+        priceImpact,
         estimatedGas: estimatedGas ? estimatedGas.toString() : null,
         timestamp: Date.now()
       };

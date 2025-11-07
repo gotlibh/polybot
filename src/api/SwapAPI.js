@@ -1,14 +1,16 @@
 import express from 'express';
 import Logger from '../utils/logger.js';
 import SwapValidator from '../utils/SwapValidator.js';
+import TokenResolver from '../utils/TokenResolver.js';
 
 /**
  * SwapAPI - REST API for swap execution
  * Provides endpoints for executing swaps and getting quotes
  */
 class SwapAPI {
-  constructor(swapExecutor, options = {}) {
+  constructor(swapExecutor, provider, options = {}) {
     this.swapExecutor = swapExecutor;
+    this.provider = provider;
     this.options = {
       port: options.port || 3000,
       host: options.host || 'localhost',
@@ -19,6 +21,7 @@ class SwapAPI {
 
     this.logger = new Logger('SwapAPI');
     this.validator = new SwapValidator(options.validation || {});
+    this.tokenResolver = new TokenResolver(provider);
     this.app = express();
     this.server = null;
 
@@ -156,8 +159,11 @@ class SwapAPI {
     // Get swap quote
     this.app.post('/api/v1/swap/quote', async (req, res) => {
       try {
+        // Normalize token identifiers (resolve symbols to addresses and get decimals)
+        const normalizedParams = await this.tokenResolver.normalizeSwapParams(req.body);
+
         // Validate request
-        const validation = this.validator.validateQuote(req.body);
+        const validation = this.validator.validateQuote(normalizedParams);
         if (!validation.valid) {
           return res.status(400).json({
             success: false,
@@ -167,7 +173,7 @@ class SwapAPI {
         }
 
         // Get quote
-        const quote = await this.swapExecutor.getSwapQuote(req.body);
+        const quote = await this.swapExecutor.getSwapQuote(normalizedParams);
         res.json(quote);
       } catch (error) {
         this.logger.error('Failed to get quote', error);
@@ -181,8 +187,11 @@ class SwapAPI {
     // Execute swap
     this.app.post('/api/v1/swap/execute', async (req, res) => {
       try {
+        // Normalize token identifiers (resolve symbols to addresses and get decimals)
+        const normalizedParams = await this.tokenResolver.normalizeSwapParams(req.body);
+
         // Validate request
-        const validation = this.validator.validate(req.body);
+        const validation = this.validator.validate(normalizedParams);
         if (!validation.valid) {
           return res.status(400).json({
             success: false,
@@ -192,14 +201,14 @@ class SwapAPI {
         }
 
         this.logger.info('Executing swap via API', {
-          dex: req.body.dexName,
-          tokenIn: req.body.tokenIn,
-          tokenOut: req.body.tokenOut,
-          amount: req.body.amountIn
+          dex: normalizedParams.dexName,
+          tokenIn: `${normalizedParams.tokenInSymbol} (${normalizedParams.tokenIn})`,
+          tokenOut: `${normalizedParams.tokenOutSymbol} (${normalizedParams.tokenOut})`,
+          amount: normalizedParams.amountIn
         });
 
         // Execute swap
-        const result = await this.swapExecutor.executeSwap(req.body);
+        const result = await this.swapExecutor.executeSwap(normalizedParams);
 
         if (result.success) {
           res.json(result);
@@ -259,6 +268,78 @@ class SwapAPI {
         });
       } catch (error) {
         this.logger.error('Failed to get validator config', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Get all tokens
+    this.app.get('/api/v1/tokens', (req, res) => {
+      try {
+        const tokens = this.tokenResolver.getAllTokens();
+        res.json({
+          success: true,
+          tokens,
+          count: tokens.length
+        });
+      } catch (error) {
+        this.logger.error('Failed to get tokens', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Search tokens
+    this.app.get('/api/v1/tokens/search', (req, res) => {
+      try {
+        const query = req.query.q || req.query.query;
+        if (!query) {
+          return res.status(400).json({
+            success: false,
+            error: 'Query parameter required',
+            message: 'Use ?q=USDC or ?query=USDC'
+          });
+        }
+
+        const results = this.tokenResolver.searchTokens(query);
+        res.json({
+          success: true,
+          query,
+          results,
+          count: results.length
+        });
+      } catch (error) {
+        this.logger.error('Failed to search tokens', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
+    // Resolve token (get info by symbol or address)
+    this.app.post('/api/v1/tokens/resolve', async (req, res) => {
+      try {
+        const { token } = req.body;
+        if (!token) {
+          return res.status(400).json({
+            success: false,
+            error: 'Token identifier required',
+            message: 'Provide token symbol or address in request body: { "token": "USDC" }'
+          });
+        }
+
+        const tokenInfo = await this.tokenResolver.resolve(token);
+        res.json({
+          success: true,
+          token: tokenInfo
+        });
+      } catch (error) {
+        this.logger.error('Failed to resolve token', error);
         res.status(500).json({
           success: false,
           error: error.message
@@ -334,7 +415,10 @@ class SwapAPI {
         'POST /api/v1/swap/execute',
         'GET /api/v1/stats',
         'POST /api/v1/stats/reset',
-        'GET /api/v1/config/validator'
+        'GET /api/v1/config/validator',
+        'GET /api/v1/tokens',
+        'GET /api/v1/tokens/search?q=USDC',
+        'POST /api/v1/tokens/resolve'
       ]
     };
   }

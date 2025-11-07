@@ -119,7 +119,17 @@ curl -H "X-API-Key: your-api-key" http://localhost:3000/api/v1/routers
 
 Get a quote for a swap without executing it.
 
-**Request Body:**
+**Request Body (with symbols - recommended):**
+```json
+{
+  "dexName": "QuickSwap",
+  "tokenIn": "WMATIC",
+  "tokenOut": "USDC",
+  "amountIn": "1.5"
+}
+```
+
+**Request Body (with addresses):**
 ```json
 {
   "dexName": "QuickSwap",
@@ -132,18 +142,18 @@ Get a quote for a swap without executing it.
 }
 ```
 
-**Example:**
+**Note:** You can now use token symbols (USDC, WMATIC, GHST, etc.) instead of addresses! The system will automatically resolve them and fetch decimals from the blockchain or registry.
+
+**Example with symbols:**
 ```bash
 curl -X POST http://localhost:3000/api/v1/swap/quote \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "dexName": "QuickSwap",
-    "tokenIn": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-    "tokenOut": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-    "amountIn": "1.5",
-    "tokenInDecimals": 18,
-    "tokenOutDecimals": 6
+    "tokenIn": "WMATIC",
+    "tokenOut": "USDC",
+    "amountIn": "1.5"
   }'
 ```
 
@@ -330,6 +340,125 @@ curl -H "X-API-Key: your-api-key" http://localhost:3000/api/v1/config/validator
   }
 }
 ```
+
+---
+
+### Get All Tokens
+
+**GET** `/api/v1/tokens`
+
+Get list of all tokens in the registry.
+
+```bash
+curl -H "X-API-Key: your-api-key" http://localhost:3000/api/v1/tokens
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tokens": [
+    {
+      "symbol": "USDC",
+      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "name": "USD Coin (PoS)",
+      "decimals": 6,
+      "type": "stablecoin"
+    },
+    {
+      "symbol": "WMATIC",
+      "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+      "name": "Wrapped Matic",
+      "decimals": 18,
+      "type": "native"
+    }
+  ],
+  "count": 20
+}
+```
+
+---
+
+### Search Tokens
+
+**GET** `/api/v1/tokens/search?q=USDC`
+
+Search for tokens by symbol, name, or address.
+
+```bash
+curl -H "X-API-Key: your-api-key" "http://localhost:3000/api/v1/tokens/search?q=USDC"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "query": "USDC",
+  "results": [
+    {
+      "symbol": "USDC",
+      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "name": "USD Coin (PoS)",
+      "decimals": 6,
+      "type": "stablecoin"
+    },
+    {
+      "symbol": "USDC.e",
+      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "name": "USD Coin (PoS)",
+      "decimals": 6,
+      "type": "stablecoin"
+    }
+  ],
+  "count": 2
+}
+```
+
+---
+
+### Resolve Token
+
+**POST** `/api/v1/tokens/resolve`
+
+Resolve a token by symbol or address. Fetches metadata from blockchain if not in registry.
+
+```bash
+curl -X POST http://localhost:3000/api/v1/tokens/resolve \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"token": "GHST"}'
+```
+
+**Response (from registry):**
+```json
+{
+  "success": true,
+  "token": {
+    "address": "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7",
+    "symbol": "GHST",
+    "name": "Aavegotchi GHST Token",
+    "decimals": 18,
+    "type": "gaming",
+    "source": "registry"
+  }
+}
+```
+
+**Response (from blockchain):**
+```json
+{
+  "success": true,
+  "token": {
+    "address": "0x...",
+    "symbol": "CUSTOM",
+    "name": "Custom Token",
+    "decimals": 18,
+    "source": "blockchain"
+  }
+}
+```
+
+---
 
 ## Request Examples
 

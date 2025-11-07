@@ -153,7 +153,7 @@ class PolyBot {
 
         // Start swap API if enabled
         if (this.config.swap.api?.enabled) {
-          this.swapAPI = new SwapAPI(this.swapExecutor, this.config.swap.api);
+          this.swapAPI = new SwapAPI(this.swapExecutor, provider, this.config.swap.api);
           await this.swapAPI.start();
 
           logger.info("Swap API started", this.swapAPI.getInfo());
