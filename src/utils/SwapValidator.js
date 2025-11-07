@@ -245,13 +245,34 @@ class SwapValidator {
     });
 
     // Quote schema (similar to swap but without private key)
+    // Supports either (tokenIn + tokenOut) OR (token with "TOKEN1/TOKEN2" format)
     this.quoteSchema = Joi.object({
       dexName: dexNameValidator.label('DEX name'),
 
-      tokenIn: buildTokenValidator().label('tokenIn'),
+      // Token pair format (e.g., "WBTC/USDC")
+      token: Joi.string()
+        .pattern(/^[a-zA-Z0-9.]+\/[a-zA-Z0-9.]+$/)
+        .optional()
+        .label('token')
+        .messages({
+          'string.pattern.base': '{{#label}} must be in format "TOKEN1/TOKEN2" (e.g., "WBTC/USDC")'
+        }),
+
+      tokenIn: buildTokenValidator()
+        .when('token', {
+          is: Joi.exist(),
+          then: Joi.optional(),
+          otherwise: Joi.required()
+        })
+        .label('tokenIn'),
 
       tokenOut: buildTokenValidator()
         .invalid(Joi.ref('tokenIn'))
+        .when('token', {
+          is: Joi.exist(),
+          then: Joi.optional(),
+          otherwise: Joi.required()
+        })
         .label('tokenOut')
         .messages({
           'any.invalid': 'tokenOut must be different from tokenIn'
@@ -281,14 +302,14 @@ class SwapValidator {
         .integer()
         .min(0)
         .max(18)
-        .required()
+        .optional()
         .label('tokenInDecimals'),
 
       tokenOutDecimals: Joi.number()
         .integer()
         .min(0)
         .max(18)
-        .required()
+        .optional()
         .label('tokenOutDecimals'),
 
       slippage: Joi.number()
@@ -296,6 +317,20 @@ class SwapValidator {
         .max(this.options.maxSlippage)
         .optional()
         .label('slippage')
+    })
+    .custom((value, helpers) => {
+      // Must have either 'token' OR both 'tokenIn' and 'tokenOut'
+      if (!value.token && (!value.tokenIn || !value.tokenOut)) {
+        return helpers.error('object.missingTokens');
+      }
+      if (value.token && (value.tokenIn || value.tokenOut)) {
+        return helpers.error('object.conflictingTokens');
+      }
+      return value;
+    })
+    .messages({
+      'object.missingTokens': 'Must provide either "token" (e.g., "WBTC/USDC") or both "tokenIn" and "tokenOut"',
+      'object.conflictingTokens': 'Cannot specify both "token" and "tokenIn"/"tokenOut". Use one format only.'
     });
   }
 

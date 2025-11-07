@@ -1,5 +1,6 @@
 import { Contract, parseUnits, formatUnits, Wallet, MaxUint256 } from 'ethers';
 import Logger from '../utils/logger.js';
+import TokenResolver from '../utils/TokenResolver.js';
 import { UNISWAP_V2_ROUTER_ABI, ERC20_ABI } from '../abi/DexRouter.js';
 
 /**
@@ -17,6 +18,7 @@ class SwapExecutor {
     };
 
     this.logger = new Logger('SwapExecutor');
+    this.tokenResolver = new TokenResolver(provider);
     this.routers = new Map();
 
     this.stats = {
@@ -609,6 +611,174 @@ class SwapExecutor {
       };
     } catch (error) {
       this.logger.error('Failed to get multi-DEX quotes', error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
+
+  /**
+   * Get arbitrage analysis for token pair across multiple DEXes
+   * Queries both directions and finds best round-trip opportunities
+   * @param {Object} params - Parameters with token pair
+   * @returns {Promise<Object>} - Arbitrage analysis with best opportunities
+   */
+  async getArbitrageAnalysis(params) {
+    try {
+      const { token1, token2, dexName: dexNames, amountIn, slippage } = params;
+
+      this.logger.info('Analyzing arbitrage opportunities', {
+        pair: `${token1}/${token2}`,
+        dexes: dexNames,
+        amountIn
+      });
+
+      // Resolve both tokens
+      const [token1Info, token2Info] = await Promise.all([
+        this.tokenResolver.resolve(token1),
+        this.tokenResolver.resolve(token2)
+      ]);
+
+      // Get quotes for both directions across all DEXes
+      // Direction A: token1 -> token2
+      const quotesA = await this.getMultiDexQuote({
+        dexName: dexNames,
+        tokenIn: token1Info.address,
+        tokenOut: token2Info.address,
+        tokenInDecimals: token1Info.decimals,
+        tokenOutDecimals: token2Info.decimals,
+        tokenInSymbol: token1Info.symbol,
+        tokenOutSymbol: token2Info.symbol,
+        amountIn,
+        slippage
+      });
+
+      if (!quotesA.success) {
+        return {
+          success: false,
+          error: 'Failed to get quotes for direction A',
+          details: quotesA.error
+        };
+      }
+
+      // Now for each quote in direction A, get quotes for direction B using the output amount
+      const arbitrageOpportunities = [];
+
+      for (const quoteA of quotesA.quotes) {
+        if (!quoteA.success) continue;
+
+        const dexA = quoteA.dex;
+        const amountOut = quoteA.expectedAmountOut;
+
+        // Direction B: token2 -> token1 (using output from A as input)
+        const quotesB = await this.getMultiDexQuote({
+          dexName: dexNames,
+          tokenIn: token2Info.address,
+          tokenOut: token1Info.address,
+          tokenInDecimals: token2Info.decimals,
+          tokenOutDecimals: token1Info.decimals,
+          tokenInSymbol: token2Info.symbol,
+          tokenOutSymbol: token1Info.symbol,
+          amountIn: amountOut,
+          slippage
+        });
+
+        if (!quotesB.success) continue;
+
+        // Analyze each round-trip combination
+        for (const quoteB of quotesB.quotes) {
+          if (!quoteB.success) continue;
+
+          const dexB = quoteB.dex;
+          const finalAmount = parseFloat(quoteB.expectedAmountOut);
+          const initialAmount = parseFloat(amountIn);
+
+          // Calculate profit/loss
+          const profitLoss = finalAmount - initialAmount;
+          const profitLossPercentage = ((profitLoss / initialAmount) * 100).toFixed(4);
+          const isProfit = profitLoss > 0;
+
+          arbitrageOpportunities.push({
+            path: `${dexA} → ${dexB}`,
+            dexA,
+            dexB,
+            route: `${token1Info.symbol} → ${token2Info.symbol} → ${token1Info.symbol}`,
+            initialAmount: amountIn,
+            intermediateAmount: amountOut,
+            finalAmount: finalAmount.toFixed(token1Info.decimals),
+            profitLoss: profitLoss.toFixed(token1Info.decimals),
+            profitLossPercentage: `${profitLossPercentage}%`,
+            profitLossToken: token1Info.symbol,
+            isProfit,
+            swapADetails: {
+              dex: dexA,
+              from: token1Info.symbol,
+              to: token2Info.symbol,
+              amountIn: quoteA.amountIn,
+              amountOut: quoteA.expectedAmountOut,
+              priceImpact: quoteA.priceImpact,
+              reserves: quoteA.reserves
+            },
+            swapBDetails: {
+              dex: dexB,
+              from: token2Info.symbol,
+              to: token1Info.symbol,
+              amountIn: quoteB.amountIn,
+              amountOut: quoteB.expectedAmountOut,
+              priceImpact: quoteB.priceImpact,
+              reserves: quoteB.reserves
+            }
+          });
+        }
+      }
+
+      // Sort by profit/loss (descending)
+      arbitrageOpportunities.sort((a, b) => {
+        const profitA = parseFloat(a.profitLoss);
+        const profitB = parseFloat(b.profitLoss);
+        return profitB - profitA;
+      });
+
+      // Find best profitable opportunity
+      const bestProfitable = arbitrageOpportunities.find(opp => opp.isProfit);
+      const bestOverall = arbitrageOpportunities[0];
+
+      // Calculate statistics
+      const profitableCount = arbitrageOpportunities.filter(opp => opp.isProfit).length;
+      const totalOpportunities = arbitrageOpportunities.length;
+
+      return {
+        success: true,
+        pair: `${token1Info.symbol}/${token2Info.symbol}`,
+        token1: {
+          symbol: token1Info.symbol,
+          address: token1Info.address,
+          decimals: token1Info.decimals
+        },
+        token2: {
+          symbol: token2Info.symbol,
+          address: token2Info.address,
+          decimals: token2Info.decimals
+        },
+        initialAmount: amountIn,
+        dexesAnalyzed: dexNames,
+        summary: {
+          totalOpportunities,
+          profitableOpportunities: profitableCount,
+          hasArbitrage: profitableCount > 0,
+          bestProfit: bestProfitable ? bestProfitable.profitLoss : null,
+          bestProfitPercentage: bestProfitable ? bestProfitable.profitLossPercentage : null,
+          bestProfitPath: bestProfitable ? bestProfitable.path : null
+        },
+        bestProfitableOpportunity: bestProfitable || null,
+        bestOverallOpportunity: bestOverall,
+        allOpportunities: arbitrageOpportunities,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      this.logger.error('Failed to analyze arbitrage', error);
       return {
         success: false,
         error: error.message,

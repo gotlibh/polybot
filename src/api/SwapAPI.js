@@ -159,6 +159,40 @@ class SwapAPI {
     // Get swap quote
     this.app.post('/api/v1/swap/quote', async (req, res) => {
       try {
+        // Check if this is a token pair request (e.g., "WBTC/USDC")
+        if (req.body.token && req.body.token.includes('/')) {
+          // Parse token pair
+          const [token1, token2] = req.body.token.split('/').map(t => t.trim());
+
+          if (!token1 || !token2) {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid token pair format',
+              message: 'Token pair must be in format "TOKEN1/TOKEN2"'
+            });
+          }
+
+          // Check if multi-DEX
+          const isMultiDex = Array.isArray(req.body.dexName);
+          if (!isMultiDex) {
+            return res.status(400).json({
+              success: false,
+              error: 'Multi-DEX required for arbitrage analysis',
+              message: 'Token pair format requires multiple DEXes. Use: "dexName": ["QuickSwap", "SushiSwap"]'
+            });
+          }
+
+          // Get arbitrage analysis
+          const result = await this.swapExecutor.getArbitrageAnalysis({
+            ...req.body,
+            token1,
+            token2
+          });
+
+          return res.json(result);
+        }
+
+        // Normal quote flow
         // Normalize token identifiers (resolve symbols to addresses and get decimals)
         const normalizedParams = await this.tokenResolver.normalizeSwapParams(req.body);
 

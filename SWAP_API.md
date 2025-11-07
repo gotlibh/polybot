@@ -305,6 +305,164 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
 
 ---
 
+### Get Arbitrage Analysis
+
+**POST** `/api/v1/swap/quote`
+
+Analyze arbitrage opportunities for a token pair across multiple DEXes. This endpoint queries both swap directions (A→B and B→A) and calculates real profit/loss for round-trip swaps.
+
+**Request Body:**
+```json
+{
+  "token": "WBTC/USDC",
+  "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
+  "amountIn": "1"
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Token pair in format "TOKEN1/TOKEN2" |
+| `dexName` | array | Yes | Array of DEX names (minimum 2) |
+| `amountIn` | string | Yes | Initial amount to start with |
+| `slippage` | number | No | Slippage tolerance % |
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/v1/swap/quote \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "WBTC/USDC",
+    "dexName": ["QuickSwap", "SushiSwap"],
+    "amountIn": "1"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "pair": "WBTC/USDC",
+  "token1": {
+    "symbol": "WBTC",
+    "address": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+    "decimals": 8
+  },
+  "token2": {
+    "symbol": "USDC",
+    "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "decimals": 6
+  },
+  "initialAmount": "1",
+  "dexesAnalyzed": ["QuickSwap", "SushiSwap"],
+  "summary": {
+    "totalOpportunities": 4,
+    "profitableOpportunities": 0,
+    "hasArbitrage": false,
+    "bestProfit": null,
+    "bestProfitPercentage": null,
+    "bestProfitPath": null
+  },
+  "bestProfitableOpportunity": null,
+  "bestOverallOpportunity": {
+    "path": "SushiSwap → SushiSwap",
+    "dexA": "SushiSwap",
+    "dexB": "SushiSwap",
+    "route": "WBTC → USDC → WBTC",
+    "initialAmount": "1",
+    "intermediateAmount": "63024.510000",
+    "finalAmount": "0.98500000",
+    "profitLoss": "-0.01500000",
+    "profitLossPercentage": "-1.5000%",
+    "profitLossToken": "WBTC",
+    "isProfit": false,
+    "swapADetails": {
+      "dex": "SushiSwap",
+      "from": "WBTC",
+      "to": "USDC",
+      "amountIn": "1",
+      "amountOut": "63024.510000",
+      "priceImpact": "0.7234%",
+      "reserves": {
+        "WBTC": "138.25000000",
+        "USDC": "8725000.250000",
+        "pairAddress": "0x..."
+      }
+    },
+    "swapBDetails": {
+      "dex": "SushiSwap",
+      "from": "USDC",
+      "to": "WBTC",
+      "amountIn": "63024.510000",
+      "amountOut": "0.98500000",
+      "priceImpact": "0.7234%",
+      "reserves": {
+        "USDC": "8788024.760000",
+        "WBTC": "137.25000000",
+        "pairAddress": "0x..."
+      }
+    }
+  },
+  "allOpportunities": [
+    {
+      "path": "SushiSwap → SushiSwap",
+      "profitLoss": "-0.01500000",
+      "profitLossPercentage": "-1.5000%",
+      "isProfit": false
+    },
+    {
+      "path": "SushiSwap → QuickSwap",
+      "profitLoss": "-0.02300000",
+      "profitLossPercentage": "-2.3000%",
+      "isProfit": false
+    },
+    {
+      "path": "QuickSwap → SushiSwap",
+      "profitLoss": "-0.03100000",
+      "profitLossPercentage": "-3.1000%",
+      "isProfit": false
+    },
+    {
+      "path": "QuickSwap → QuickSwap",
+      "profitLoss": "-0.04200000",
+      "profitLossPercentage": "-4.2000%",
+      "isProfit": false
+    }
+  ],
+  "timestamp": 1699000000000
+}
+```
+
+**How It Works:**
+
+1. **Direction A**: Swaps `amountIn` of token1 → token2 on each DEX
+2. **Direction B**: Takes the output from step 1 and swaps token2 → token1 on each DEX
+3. **Analysis**: Calculates profit/loss by comparing final amount to initial amount
+4. **Results**: Shows all combinations sorted by best profit/loss
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `summary.hasArbitrage` | `true` if any profitable round-trip exists |
+| `summary.bestProfit` | Best profit amount (null if no profit) |
+| `summary.bestProfitPath` | DEX path for best profit (e.g., "QuickSwap → SushiSwap") |
+| `bestProfitableOpportunity` | Best profitable round-trip (null if none) |
+| `bestOverallOpportunity` | Best round-trip overall (even if unprofitable) |
+| `allOpportunities` | All round-trip combinations sorted by profit |
+
+**Use Cases:**
+
+- **Find Arbitrage**: Discover profitable round-trip swaps across DEXes
+- **Compare DEXes**: See which DEX combinations have least slippage
+- **Market Analysis**: Understand price efficiency across liquidity pools
+- **Risk Assessment**: Evaluate potential losses before executing swaps
+
+---
+
 ### Execute Swap
 
 **POST** `/api/v1/swap/execute`
