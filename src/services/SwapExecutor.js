@@ -1,7 +1,7 @@
-import { Contract, parseUnits, formatUnits, Wallet, MaxUint256 } from 'ethers';
-import Logger from '../utils/logger.js';
-import TokenResolver from '../utils/TokenResolver.js';
-import { UNISWAP_V2_ROUTER_ABI, ERC20_ABI } from '../abi/DexRouter.js';
+import { Contract, parseUnits, formatUnits, Wallet, MaxUint256 } from "ethers";
+import Logger from "../utils/logger.js";
+import TokenResolver from "../utils/TokenResolver.js";
+import { UNISWAP_V2_ROUTER_ABI, ERC20_ABI } from "../abi/DexRouter.js";
 
 /**
  * SwapExecutor - Executes token swaps on DEXes
@@ -15,10 +15,10 @@ class SwapExecutor {
       deadlineMinutes: options.deadlineMinutes || 20, // Default 20 minutes
       gasLimitBuffer: options.gasLimitBuffer || 1.2, // 20% buffer on gas estimates
       arbitrageCacheTTL: options.arbitrageCacheTTL || 300000, // 5 minutes default
-      ...options
+      ...options,
     };
 
-    this.logger = new Logger('SwapExecutor');
+    this.logger = new Logger("SwapExecutor");
     this.tokenResolver = new TokenResolver(provider);
     this.routers = new Map();
 
@@ -29,7 +29,7 @@ class SwapExecutor {
       totalSwaps: 0,
       successfulSwaps: 0,
       failedSwaps: 0,
-      totalVolumeUSD: 0
+      totalVolumeUSD: 0,
     };
   }
 
@@ -53,14 +53,14 @@ class SwapExecutor {
       ...opportunity,
       id,
       cachedAt: Date.now(),
-      expiresAt
+      expiresAt,
     });
 
-    this.logger.debug('Cached arbitrage opportunity', {
+    this.logger.debug("Cached arbitrage opportunity", {
       id,
       pair: opportunity.pair,
       profitPercentage: opportunity.profitLossPercentage,
-      expiresIn: `${this.options.arbitrageCacheTTL / 1000}s`
+      expiresIn: `${this.options.arbitrageCacheTTL / 1000}s`,
     });
 
     return id;
@@ -81,7 +81,7 @@ class SwapExecutor {
     // Check if expired
     if (Date.now() > opportunity.expiresAt) {
       this.arbitrageCache.delete(id);
-      this.logger.debug('Arbitrage opportunity expired', { id });
+      this.logger.debug("Arbitrage opportunity expired", { id });
       return null;
     }
 
@@ -111,8 +111,8 @@ class SwapExecutor {
    * Initialize router contracts
    */
   async initialize(dexRouters) {
-    this.logger.info('Initializing DEX routers for swap execution', {
-      routerCount: dexRouters.length
+    this.logger.info("Initializing DEX routers for swap execution", {
+      routerCount: dexRouters.length,
     });
 
     for (const dexConfig of dexRouters) {
@@ -130,14 +130,17 @@ class SwapExecutor {
         this.routers.set(dexConfig.name, {
           contract: router,
           address: dexConfig.address,
-          config: dexConfig
+          config: dexConfig,
         });
 
         this.logger.info(`Initialized router: ${dexConfig.name}`, {
-          address: dexConfig.address
+          address: dexConfig.address,
         });
       } catch (error) {
-        this.logger.error(`Failed to initialize router ${dexConfig.name}`, error);
+        this.logger.error(
+          `Failed to initialize router ${dexConfig.name}`,
+          error
+        );
       }
     }
   }
@@ -155,44 +158,47 @@ class SwapExecutor {
       const tokenContract = new Contract(tokenAddress, ERC20_ABI, wallet);
 
       // Check current allowance
-      const currentAllowance = await tokenContract.allowance(wallet.address, routerAddress);
+      const currentAllowance = await tokenContract.allowance(
+        wallet.address,
+        routerAddress
+      );
 
-      this.logger.debug('Checking token allowance', {
+      this.logger.debug("Checking token allowance", {
         token: tokenAddress,
         router: routerAddress,
         current: currentAllowance.toString(),
-        needed: amountNeeded.toString()
+        needed: amountNeeded.toString(),
       });
 
       // If allowance is sufficient, no approval needed
       if (currentAllowance >= BigInt(amountNeeded)) {
-        this.logger.info('Token allowance sufficient, no approval needed');
+        this.logger.info("Token allowance sufficient, no approval needed");
         return false;
       }
 
       // Need to approve
-      this.logger.info('Approving token for router', {
+      this.logger.info("Approving token for router", {
         token: tokenAddress,
         router: routerAddress,
-        amount: 'unlimited'
+        amount: "unlimited",
       });
 
       // Approve unlimited amount (common practice to avoid repeated approvals)
       const approveTx = await tokenContract.approve(routerAddress, MaxUint256);
-      this.logger.info('Approval transaction sent', {
-        hash: approveTx.hash
+      this.logger.info("Approval transaction sent", {
+        hash: approveTx.hash,
       });
 
       // Wait for approval confirmation
       const approveReceipt = await approveTx.wait();
-      this.logger.info('Token approved successfully', {
+      this.logger.info("Token approved successfully", {
         hash: approveReceipt.hash,
-        blockNumber: approveReceipt.blockNumber
+        blockNumber: approveReceipt.blockNumber,
       });
 
       return true;
     } catch (error) {
-      this.logger.error('Failed to approve token', error);
+      this.logger.error("Failed to approve token", error);
       throw new Error(`Token approval failed: ${error.message}`);
     }
   }
@@ -220,11 +226,11 @@ class SwapExecutor {
     this.stats.totalSwaps++;
 
     try {
-      this.logger.info('Starting swap execution', {
+      this.logger.info("Starting swap execution", {
         dex: params.dexName,
         tokenIn: params.tokenIn,
         tokenOut: params.tokenOut,
-        amountIn: params.amountIn
+        amountIn: params.amountIn,
       });
 
       // Get router
@@ -237,8 +243,8 @@ class SwapExecutor {
       const wallet = new Wallet(params.privateKey, this.provider);
       const senderAddress = wallet.address;
 
-      this.logger.info('Wallet connected', {
-        address: senderAddress
+      this.logger.info("Wallet connected", {
+        address: senderAddress,
       });
 
       // Connect router to wallet
@@ -251,15 +257,18 @@ class SwapExecutor {
       const tokenContract = new Contract(params.tokenIn, ERC20_ABI, wallet);
       const balance = await tokenContract.balanceOf(senderAddress);
 
-      this.logger.info('Checking token balance', {
+      this.logger.info("Checking token balance", {
         token: params.tokenIn,
         balance: formatUnits(balance, params.tokenInDecimals),
-        needed: params.amountIn
+        needed: params.amountIn,
       });
 
       if (balance < amountInWei) {
         throw new Error(
-          `Insufficient token balance. Have: ${formatUnits(balance, params.tokenInDecimals)}, Need: ${params.amountIn}`
+          `Insufficient token balance. Have: ${formatUnits(
+            balance,
+            params.tokenInDecimals
+          )}, Need: ${params.amountIn}`
         );
       }
 
@@ -275,42 +284,41 @@ class SwapExecutor {
       const slippage = params.slippage || this.options.maxSlippage;
       const path = [params.tokenIn, params.tokenOut];
 
-      this.logger.info('Getting amounts out', {
+      this.logger.info("Getting amounts out", {
         amountIn: amountInWei.toString(),
-        path
+        path,
       });
 
       const amountsOut = await router.getAmountsOut(amountInWei, path);
       const expectedAmountOut = amountsOut[1];
-      const minAmountOut = (expectedAmountOut * BigInt(Math.floor((100 - slippage) * 100))) / 10000n;
+      const minAmountOut =
+        (expectedAmountOut * BigInt(Math.floor((100 - slippage) * 100))) /
+        10000n;
 
-      this.logger.info('Calculated output amounts', {
-        expectedAmountOut: formatUnits(expectedAmountOut, params.tokenOutDecimals),
+      this.logger.info("Calculated output amounts", {
+        expectedAmountOut: formatUnits(
+          expectedAmountOut,
+          params.tokenOutDecimals
+        ),
         minAmountOut: formatUnits(minAmountOut, params.tokenOutDecimals),
-        slippage: `${slippage}%`
+        slippage: `${slippage}%`,
       });
 
       // Calculate deadline
       const deadlineMinutes = params.deadline || this.options.deadlineMinutes;
-      const deadline = Math.floor(Date.now() / 1000) + (deadlineMinutes * 60);
+      const deadline = Math.floor(Date.now() / 1000) + deadlineMinutes * 60;
 
       // Recipient address
       const recipient = params.recipient || senderAddress;
 
       // Build transaction
-      const swapMethod = 'swapExactTokensForTokens';
-      const swapArgs = [
-        amountInWei,
-        minAmountOut,
-        path,
-        recipient,
-        deadline
-      ];
+      const swapMethod = "swapExactTokensForTokens";
+      const swapArgs = [amountInWei, minAmountOut, path, recipient, deadline];
 
-      this.logger.info('Building transaction', {
+      this.logger.info("Building transaction", {
         method: swapMethod,
         recipient,
-        deadline: new Date(deadline * 1000).toISOString()
+        deadline: new Date(deadline * 1000).toISOString(),
       });
 
       // Estimate gas
@@ -324,38 +332,47 @@ class SwapExecutor {
           recipient,
           deadline
         );
-        gasLimit = (estimatedGas * BigInt(Math.floor(this.options.gasLimitBuffer * 100))) / 100n;
-        this.logger.info('Gas estimated', {
+        gasLimit =
+          (estimatedGas *
+            BigInt(Math.floor(this.options.gasLimitBuffer * 100))) /
+          100n;
+        this.logger.info("Gas estimated", {
           estimated: estimatedGas.toString(),
-          withBuffer: gasLimit.toString()
+          withBuffer: gasLimit.toString(),
         });
       } catch (error) {
-        this.logger.warn('Gas estimation failed, using provided or default gas limit', {
-          error: error.message,
-          reason: error.reason || 'Unknown'
-        });
+        this.logger.warn(
+          "Gas estimation failed, using provided or default gas limit",
+          {
+            error: error.message,
+            reason: error.reason || "Unknown",
+          }
+        );
         gasLimit = params.gasLimit ? BigInt(params.gasLimit) : 300000n;
       }
 
       // Build transaction options
       const txOptions = {
-        gasLimit: gasLimit.toString()
+        gasLimit: gasLimit.toString(),
       };
 
       // Add gas pricing (EIP-1559 or legacy)
       if (params.maxFeePerGas && params.maxPriorityFeePerGas) {
         // EIP-1559
-        txOptions.maxFeePerGas = parseUnits(params.maxFeePerGas, 'gwei');
-        txOptions.maxPriorityFeePerGas = parseUnits(params.maxPriorityFeePerGas, 'gwei');
-        this.logger.info('Using EIP-1559 gas pricing', {
+        txOptions.maxFeePerGas = parseUnits(params.maxFeePerGas, "gwei");
+        txOptions.maxPriorityFeePerGas = parseUnits(
+          params.maxPriorityFeePerGas,
+          "gwei"
+        );
+        this.logger.info("Using EIP-1559 gas pricing", {
           maxFeePerGas: params.maxFeePerGas,
-          maxPriorityFeePerGas: params.maxPriorityFeePerGas
+          maxPriorityFeePerGas: params.maxPriorityFeePerGas,
         });
       } else if (params.gasPrice) {
         // Legacy
-        txOptions.gasPrice = parseUnits(params.gasPrice, 'gwei');
-        this.logger.info('Using legacy gas pricing', {
-          gasPrice: params.gasPrice
+        txOptions.gasPrice = parseUnits(params.gasPrice, "gwei");
+        this.logger.info("Using legacy gas pricing", {
+          gasPrice: params.gasPrice,
         });
       } else {
         // Auto fetch gas price
@@ -363,42 +380,45 @@ class SwapExecutor {
         if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
           txOptions.maxFeePerGas = feeData.maxFeePerGas;
           txOptions.maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
-          this.logger.info('Auto-detected EIP-1559 gas pricing', {
-            maxFeePerGas: formatUnits(feeData.maxFeePerGas, 'gwei'),
-            maxPriorityFeePerGas: formatUnits(feeData.maxPriorityFeePerGas, 'gwei')
+          this.logger.info("Auto-detected EIP-1559 gas pricing", {
+            maxFeePerGas: formatUnits(feeData.maxFeePerGas, "gwei"),
+            maxPriorityFeePerGas: formatUnits(
+              feeData.maxPriorityFeePerGas,
+              "gwei"
+            ),
           });
         } else if (feeData.gasPrice) {
           txOptions.gasPrice = feeData.gasPrice;
-          this.logger.info('Auto-detected legacy gas pricing', {
-            gasPrice: formatUnits(feeData.gasPrice, 'gwei')
+          this.logger.info("Auto-detected legacy gas pricing", {
+            gasPrice: formatUnits(feeData.gasPrice, "gwei"),
           });
         }
       }
 
-      this.logger.info('Executing swap transaction...');
+      this.logger.info("Executing swap transaction...");
 
       // Execute swap
       const tx = await router[swapMethod](...swapArgs, txOptions);
 
-      this.logger.info('Transaction sent', {
+      this.logger.info("Transaction sent", {
         hash: tx.hash,
         from: senderAddress,
-        to: routerInfo.address
+        to: routerInfo.address,
       });
 
       // Wait for confirmation
-      this.logger.info('Waiting for transaction confirmation...');
+      this.logger.info("Waiting for transaction confirmation...");
       const receipt = await tx.wait();
 
-      this.logger.info('Transaction confirmed', {
+      this.logger.info("Transaction confirmed", {
         hash: receipt.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
-        status: receipt.status === 1 ? 'success' : 'failed'
+        status: receipt.status === 1 ? "success" : "failed",
       });
 
       if (receipt.status !== 1) {
-        throw new Error('Transaction failed on-chain');
+        throw new Error("Transaction failed on-chain");
       }
 
       this.stats.successfulSwaps++;
@@ -407,15 +427,15 @@ class SwapExecutor {
       let actualAmountOut = null;
       try {
         // Look for Swap event in logs
-        const swapTopic = router.interface.getEvent('Swap')?.topicHash;
-        const swapLog = receipt.logs.find(log => log.topics[0] === swapTopic);
+        const swapTopic = router.interface.getEvent("Swap")?.topicHash;
+        const swapLog = receipt.logs.find((log) => log.topics[0] === swapTopic);
         if (swapLog) {
           const parsed = router.interface.parseLog(swapLog);
           actualAmountOut = parsed.args.amount1Out || parsed.args.amount0Out;
         }
       } catch (error) {
-        this.logger.debug('Could not parse swap event from logs', {
-          error: error.message
+        this.logger.debug("Could not parse swap event from logs", {
+          error: error.message,
         });
       }
 
@@ -424,7 +444,8 @@ class SwapExecutor {
         transactionHash: receipt.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
-        effectiveGasPrice: receipt.gasPrice?.toString() || receipt.effectiveGasPrice?.toString(),
+        effectiveGasPrice:
+          receipt.gasPrice?.toString() || receipt.effectiveGasPrice?.toString(),
         from: senderAddress,
         to: routerInfo.address,
         swap: {
@@ -433,24 +454,29 @@ class SwapExecutor {
           tokenOut: params.tokenOut,
           amountIn: params.amountIn,
           amountInWei: amountInWei.toString(),
-          expectedAmountOut: formatUnits(expectedAmountOut, params.tokenOutDecimals),
+          expectedAmountOut: formatUnits(
+            expectedAmountOut,
+            params.tokenOutDecimals
+          ),
           minAmountOut: formatUnits(minAmountOut, params.tokenOutDecimals),
-          actualAmountOut: actualAmountOut ? formatUnits(actualAmountOut, params.tokenOutDecimals) : null,
+          actualAmountOut: actualAmountOut
+            ? formatUnits(actualAmountOut, params.tokenOutDecimals)
+            : null,
           slippage: `${slippage}%`,
-          deadline: new Date(deadline * 1000).toISOString()
+          deadline: new Date(deadline * 1000).toISOString(),
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
       this.stats.failedSwaps++;
-      this.logger.error('Swap execution failed', error);
+      this.logger.error("Swap execution failed", error);
 
       return {
         success: false,
         error: error.message,
         code: error.code,
         details: error.reason || error.shortMessage,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -473,72 +499,97 @@ class SwapExecutor {
       const expectedAmountOut = amountsOut[1];
 
       const slippage = params.slippage || this.options.maxSlippage;
-      const minAmountOut = (expectedAmountOut * BigInt(Math.floor((100 - slippage) * 100))) / 10000n;
+      const minAmountOut =
+        (expectedAmountOut * BigInt(Math.floor((100 - slippage) * 100))) /
+        10000n;
 
       // Get pair reserves
       let reserves = null;
       try {
-        const { UNISWAP_V2_FACTORY_ABI, UNISWAP_V2_PAIR_ABI } = await import('../abi/DexRouter.js');
+        const { UNISWAP_V2_FACTORY_ABI, UNISWAP_V2_PAIR_ABI } = await import(
+          "../abi/DexRouter.js"
+        );
 
         // Get factory address
         const factoryAddress = await router.factory();
-        const factory = new Contract(factoryAddress, UNISWAP_V2_FACTORY_ABI, this.provider);
+        const factory = new Contract(
+          factoryAddress,
+          UNISWAP_V2_FACTORY_ABI,
+          this.provider
+        );
 
         // Get pair address
-        const pairAddress = await factory.getPair(params.tokenIn, params.tokenOut);
+        const pairAddress = await factory.getPair(
+          params.tokenIn,
+          params.tokenOut
+        );
 
-        if (pairAddress && pairAddress !== '0x0000000000000000000000000000000000000000') {
-          const pair = new Contract(pairAddress, UNISWAP_V2_PAIR_ABI, this.provider);
+        if (
+          pairAddress &&
+          pairAddress !== "0x0000000000000000000000000000000000000000"
+        ) {
+          const pair = new Contract(
+            pairAddress,
+            UNISWAP_V2_PAIR_ABI,
+            this.provider
+          );
 
           // Get reserves and token order
           const [reserve0, reserve1] = await pair.getReserves();
           const token0 = await pair.token0();
 
           // Determine which reserve is which token
-          const isToken0 = token0.toLowerCase() === params.tokenIn.toLowerCase();
+          const isToken0 =
+            token0.toLowerCase() === params.tokenIn.toLowerCase();
           const reserveIn = isToken0 ? reserve0 : reserve1;
           const reserveOut = isToken0 ? reserve1 : reserve0;
 
           reserves = {
             reserveIn: formatUnits(reserveIn, params.tokenInDecimals),
             reserveOut: formatUnits(reserveOut, params.tokenOutDecimals),
-            pairAddress
+            pairAddress,
           };
         }
       } catch (error) {
-        this.logger.debug('Failed to fetch reserves', {
-          error: error.message
+        this.logger.debug("Failed to fetch reserves", {
+          error: error.message,
         });
       }
 
       // Estimate gas
       let estimatedGas = null;
       try {
-        const deadline = Math.floor(Date.now() / 1000) + (this.options.deadlineMinutes * 60);
+        const deadline =
+          Math.floor(Date.now() / 1000) + this.options.deadlineMinutes * 60;
         const tempWallet = Wallet.createRandom().connect(this.provider);
         const routerWithSigner = router.connect(tempWallet);
 
-        estimatedGas = await routerWithSigner.swapExactTokensForTokens.estimateGas(
-          amountInWei,
-          minAmountOut,
-          path,
-          tempWallet.address,
-          deadline
-        );
+        estimatedGas =
+          await routerWithSigner.swapExactTokensForTokens.estimateGas(
+            amountInWei,
+            minAmountOut,
+            path,
+            tempWallet.address,
+            deadline
+          );
       } catch (error) {
-        this.logger.debug('Gas estimation failed for quote', {
-          error: error.message
+        this.logger.debug("Gas estimation failed for quote", {
+          error: error.message,
         });
       }
 
       // Calculate exchange rate
-      const expectedOut = formatUnits(expectedAmountOut, params.tokenOutDecimals);
+      const expectedOut = formatUnits(
+        expectedAmountOut,
+        params.tokenOutDecimals
+      );
       const amountInNum = parseFloat(params.amountIn);
       const expectedOutNum = parseFloat(expectedOut);
-      const exchangeRate = amountInNum > 0 ? (expectedOutNum / amountInNum).toFixed(6) : '0';
+      const exchangeRate =
+        amountInNum > 0 ? (expectedOutNum / amountInNum).toFixed(6) : "0";
 
       // Calculate real price impact if reserves are available
-      let priceImpact = 'N/A';
+      let priceImpact = "N/A";
       if (reserves) {
         const reserveInNum = parseFloat(reserves.reserveIn);
         const reserveOutNum = parseFloat(reserves.reserveOut);
@@ -559,28 +610,32 @@ class SwapExecutor {
         dex: params.dexName,
         tokenIn: params.tokenIn,
         tokenOut: params.tokenOut,
-        tokenInSymbol: params.tokenInSymbol || 'TOKEN',
-        tokenOutSymbol: params.tokenOutSymbol || 'TOKEN',
+        tokenInSymbol: params.tokenInSymbol || "TOKEN",
+        tokenOutSymbol: params.tokenOutSymbol || "TOKEN",
         amountIn: params.amountIn,
         expectedAmountOut: expectedOut,
         minAmountOut: formatUnits(minAmountOut, params.tokenOutDecimals),
-        exchangeRate: `1 ${params.tokenInSymbol || 'TOKEN'} = ${exchangeRate} ${params.tokenOutSymbol || 'TOKEN'}`,
-        reserves: reserves ? {
-          [params.tokenInSymbol || 'tokenIn']: reserves.reserveIn,
-          [params.tokenOutSymbol || 'tokenOut']: reserves.reserveOut,
-          pairAddress: reserves.pairAddress
-        } : null,
+        exchangeRate: `1 ${params.tokenInSymbol || "TOKEN"} = ${exchangeRate} ${
+          params.tokenOutSymbol || "TOKEN"
+        }`,
+        reserves: reserves
+          ? {
+              [params.tokenInSymbol || "tokenIn"]: reserves.reserveIn,
+              [params.tokenOutSymbol || "tokenOut"]: reserves.reserveOut,
+              pairAddress: reserves.pairAddress,
+            }
+          : null,
         slippage: `${slippage}%`,
         priceImpact,
         estimatedGas: estimatedGas ? estimatedGas.toString() : null,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error('Failed to get swap quote', error);
+      this.logger.error("Failed to get swap quote", error);
       return {
         success: false,
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -593,62 +648,72 @@ class SwapExecutor {
   async getMultiDexQuote(params) {
     try {
       // Ensure dexName is an array
-      const dexNames = Array.isArray(params.dexName) ? params.dexName : [params.dexName];
+      const dexNames = Array.isArray(params.dexName)
+        ? params.dexName
+        : [params.dexName];
 
-      this.logger.info('Getting multi-DEX quotes', {
+      this.logger.info("Getting multi-DEX quotes", {
         dexes: dexNames,
         tokenIn: params.tokenInSymbol || params.tokenIn,
         tokenOut: params.tokenOutSymbol || params.tokenOut,
-        amountIn: params.amountIn
+        amountIn: params.amountIn,
       });
 
       // Query all DEXes in parallel
-      const quotePromises = dexNames.map(dexName =>
-        this.getSwapQuote({ ...params, dexName })
-          .catch(error => ({
-            success: false,
-            dex: dexName,
-            error: error.message,
-            timestamp: Date.now()
-          }))
+      const quotePromises = dexNames.map((dexName) =>
+        this.getSwapQuote({ ...params, dexName }).catch((error) => ({
+          success: false,
+          dex: dexName,
+          error: error.message,
+          timestamp: Date.now(),
+        }))
       );
 
       const quotes = await Promise.all(quotePromises);
 
       // Filter successful quotes
-      const validQuotes = quotes.filter(q => q.success);
-      const failedQuotes = quotes.filter(q => !q.success);
+      const validQuotes = quotes.filter((q) => q.success);
+      const failedQuotes = quotes.filter((q) => !q.success);
 
       if (validQuotes.length === 0) {
         return {
           success: false,
-          error: 'All DEX quotes failed',
+          error: "All DEX quotes failed",
           failedQuotes,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
       }
 
       // Parse amounts for comparison
-      const quotesWithParsedAmounts = validQuotes.map(q => ({
+      const quotesWithParsedAmounts = validQuotes.map((q) => ({
         ...q,
-        expectedAmountOutNum: parseFloat(q.expectedAmountOut)
+        expectedAmountOutNum: parseFloat(q.expectedAmountOut),
       }));
 
       // Sort by expected output (descending)
-      quotesWithParsedAmounts.sort((a, b) => b.expectedAmountOutNum - a.expectedAmountOutNum);
+      quotesWithParsedAmounts.sort(
+        (a, b) => b.expectedAmountOutNum - a.expectedAmountOutNum
+      );
 
       // Get best and worst
       const bestQuote = quotesWithParsedAmounts[0];
-      const worstQuote = quotesWithParsedAmounts[quotesWithParsedAmounts.length - 1];
+      const worstQuote =
+        quotesWithParsedAmounts[quotesWithParsedAmounts.length - 1];
 
       // Calculate price spread
       const bestPrice = bestQuote.expectedAmountOutNum;
       const worstPrice = worstQuote.expectedAmountOutNum;
-      const spread = worstPrice > 0 ? ((bestPrice - worstPrice) / worstPrice * 100).toFixed(4) : '0';
+      const spread =
+        worstPrice > 0
+          ? (((bestPrice - worstPrice) / worstPrice) * 100).toFixed(4)
+          : "0";
 
       // Calculate average price
       const avgPrice = (
-        quotesWithParsedAmounts.reduce((sum, q) => sum + q.expectedAmountOutNum, 0) / validQuotes.length
+        quotesWithParsedAmounts.reduce(
+          (sum, q) => sum + q.expectedAmountOutNum,
+          0
+        ) / validQuotes.length
       ).toFixed(6);
 
       // Build comparison data
@@ -663,7 +728,7 @@ class SwapExecutor {
         priceSpread: `${spread}%`,
         totalDexesQueried: dexNames.length,
         successfulQuotes: validQuotes.length,
-        failedQuotes: failedQuotes.length
+        failedQuotes: failedQuotes.length,
       };
 
       // Add arbitrage opportunity flag
@@ -674,10 +739,10 @@ class SwapExecutor {
         success: true,
         tokenIn: params.tokenIn,
         tokenOut: params.tokenOut,
-        tokenInSymbol: params.tokenInSymbol || 'TOKEN',
-        tokenOutSymbol: params.tokenOutSymbol || 'TOKEN',
+        tokenInSymbol: params.tokenInSymbol || "TOKEN",
+        tokenOutSymbol: params.tokenOutSymbol || "TOKEN",
         amountIn: params.amountIn,
-        quotes: quotesWithParsedAmounts.map(q => {
+        quotes: quotesWithParsedAmounts.map((q) => {
           // Remove the parsed amount from response
           const { expectedAmountOutNum, ...rest } = q;
           return rest;
@@ -685,14 +750,14 @@ class SwapExecutor {
         comparison,
         arbitrageOpportunity: hasArbOpportunity,
         failedQuotes: failedQuotes.length > 0 ? failedQuotes : undefined,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error('Failed to get multi-DEX quotes', error);
+      this.logger.error("Failed to get multi-DEX quotes", error);
       return {
         success: false,
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -707,16 +772,16 @@ class SwapExecutor {
     try {
       const { token1, token2, dexName: dexNames, amountIn, slippage } = params;
 
-      this.logger.info('Analyzing arbitrage opportunities', {
+      this.logger.info("Analyzing arbitrage opportunities", {
         pair: `${token1}/${token2}`,
         dexes: dexNames,
-        amountIn
+        amountIn,
       });
 
       // Resolve both tokens
       const [token1Info, token2Info] = await Promise.all([
         this.tokenResolver.resolve(token1),
-        this.tokenResolver.resolve(token2)
+        this.tokenResolver.resolve(token2),
       ]);
 
       // Get quotes for both directions across all DEXes
@@ -730,14 +795,14 @@ class SwapExecutor {
         tokenInSymbol: token1Info.symbol,
         tokenOutSymbol: token2Info.symbol,
         amountIn,
-        slippage
+        slippage,
       });
 
       if (!quotesA.success) {
         return {
           success: false,
-          error: 'Failed to get quotes for direction A',
-          details: quotesA.error
+          error: "Failed to get quotes for direction A",
+          details: quotesA.error,
         };
       }
 
@@ -760,7 +825,7 @@ class SwapExecutor {
           tokenInSymbol: token2Info.symbol,
           tokenOutSymbol: token1Info.symbol,
           amountIn: amountOut,
-          slippage
+          slippage,
         });
 
         if (!quotesB.success) continue;
@@ -773,24 +838,114 @@ class SwapExecutor {
           const finalAmount = parseFloat(quoteB.expectedAmountOut);
           const initialAmount = parseFloat(amountIn);
 
-          // Calculate profit/loss
-          const profitLoss = finalAmount - initialAmount;
-          const profitLossPercentage = ((profitLoss / initialAmount) * 100).toFixed(4);
-          const isProfit = profitLoss > 0;
+          // Estimate gas costs for both swaps (default 200k per swap if not available)
+          const gasA = quoteA.estimatedGas ? BigInt(quoteA.estimatedGas) : 200000n;
+          const gasB = quoteB.estimatedGas ? BigInt(quoteB.estimatedGas) : 200000n;
+          const totalGas = gasA + gasB;
+
+          // Get current gas price (estimate ~50 gwei for Polygon)
+          let gasPriceWei = 50000000000n; // 50 gwei default
+          try {
+            const feeData = await this.provider.getFeeData();
+            gasPriceWei = feeData.gasPrice || gasPriceWei;
+          } catch (error) {
+            this.logger.debug("Failed to fetch gas price, using default", {
+              error: error.message,
+            });
+          }
+
+          // Calculate gas cost in native token (POL/MATIC)
+          const totalGasCostWei = totalGas * gasPriceWei;
+          const gasCostNative = parseFloat(formatUnits(totalGasCostWei, 18));
+
+          // Convert gas cost to token1 if needed
+          // For simplicity, if token1 is not WPOL, we'll need to estimate conversion
+          let gasCostInToken1 = 0;
+
+          // Skip gas cost conversion if gas cost is negligible (< 0.000001)
+          if (gasCostNative < 0.000001) {
+            gasCostInToken1 = 0;
+          } else if (
+            token1Info.address.toLowerCase() ===
+            "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270".toLowerCase()
+          ) {
+            // token1 is WPOL, use gas cost directly
+            gasCostInToken1 = gasCostNative;
+          } else {
+            // Try to get WPOL price in terms of token1 for gas cost conversion
+            try {
+              const wpolAddress = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
+              const gasConversionQuote = await this.getSwapQuote({
+                dexName: dexA,
+                tokenIn: wpolAddress,
+                tokenOut: token1Info.address,
+                tokenInDecimals: 18,
+                tokenOutDecimals: token1Info.decimals,
+                tokenInSymbol: "WPOL",
+                tokenOutSymbol: token1Info.symbol,
+                amountIn: gasCostNative.toString(),
+              });
+
+              if (gasConversionQuote.success) {
+                gasCostInToken1 = parseFloat(
+                  gasConversionQuote.expectedAmountOut
+                );
+              }
+            } catch (error) {
+              this.logger.debug("Failed to convert gas cost to token1", {
+                error: error.message,
+              });
+              // If conversion fails, use a rough estimate (assume token1 = 1 WPOL for now)
+              gasCostInToken1 = gasCostNative;
+            }
+          }
+
+          // Calculate profit/loss without fees
+          const profitLossGross = finalAmount - initialAmount;
+
+          // Calculate net profit/loss after gas fees
+          const profitLossNet = profitLossGross - gasCostInToken1;
+          const profitLossNetPercentage = (
+            (profitLossNet / initialAmount) *
+            100
+          ).toFixed(4);
+          const isProfitNet = profitLossNet > 0;
 
           arbitrageOpportunities.push({
             path: `${dexA} → ${dexB}`,
             dexA,
             dexB,
             route: `${token1Info.symbol} → ${token2Info.symbol} → ${token1Info.symbol}`,
-            description: `BUY ${quoteA.expectedAmountOut} ${token2Info.symbol} from ${dexA} with ${amountIn} ${token1Info.symbol}, then SELL ${quoteA.expectedAmountOut} ${token2Info.symbol} on ${dexB} for ${finalAmount.toFixed(token1Info.decimals)} ${token1Info.symbol}`,
+            description: `BUY ${quoteA.expectedAmountOut} ${
+              token2Info.symbol
+            } from ${dexA} with ${amountIn} ${token1Info.symbol}, then SELL ${
+              quoteA.expectedAmountOut
+            } ${token2Info.symbol} on ${dexB} for ${finalAmount.toFixed(
+              token1Info.decimals
+            )} ${token1Info.symbol}`,
             initialAmount: amountIn,
             intermediateAmount: amountOut,
             finalAmount: finalAmount.toFixed(token1Info.decimals),
-            profitLoss: profitLoss.toFixed(token1Info.decimals),
-            profitLossPercentage: `${profitLossPercentage}%`,
+            profitLoss: profitLossGross.toFixed(token1Info.decimals),
+            profitLossPercentage: `${(
+              (profitLossGross / initialAmount) *
+              100
+            ).toFixed(4)}%`,
             profitLossToken: token1Info.symbol,
-            isProfit,
+            isProfit: profitLossGross > 0,
+            gasEstimate: {
+              totalGasUnits: totalGas.toString(),
+              gasPriceGwei: (Number(gasPriceWei) / 1e9).toFixed(2),
+              gasCostNative: gasCostNative.toFixed(6),
+              gasCostInToken: gasCostInToken1.toFixed(token1Info.decimals),
+              nativeToken: "WPOL",
+            },
+            netProfit: {
+              profitLoss: profitLossNet.toFixed(token1Info.decimals),
+              profitLossPercentage: `${profitLossNetPercentage}%`,
+              profitLossToken: token1Info.symbol,
+              isProfit: isProfitNet,
+            },
             swapADetails: {
               dex: dexA,
               from: token1Info.symbol,
@@ -798,7 +953,8 @@ class SwapExecutor {
               amountIn: quoteA.amountIn,
               amountOut: quoteA.expectedAmountOut,
               priceImpact: quoteA.priceImpact,
-              reserves: quoteA.reserves
+              reserves: quoteA.reserves,
+              estimatedGas: quoteA.estimatedGas,
             },
             swapBDetails: {
               dex: dexB,
@@ -807,25 +963,30 @@ class SwapExecutor {
               amountIn: quoteB.amountIn,
               amountOut: quoteB.expectedAmountOut,
               priceImpact: quoteB.priceImpact,
-              reserves: quoteB.reserves
-            }
+              reserves: quoteB.reserves,
+              estimatedGas: quoteB.estimatedGas,
+            },
           });
         }
       }
 
-      // Sort by profit/loss (descending)
+      // Sort by NET profit/loss (descending) - after gas fees
       arbitrageOpportunities.sort((a, b) => {
-        const profitA = parseFloat(a.profitLoss);
-        const profitB = parseFloat(b.profitLoss);
+        const profitA = parseFloat(a.netProfit.profitLoss);
+        const profitB = parseFloat(b.netProfit.profitLoss);
         return profitB - profitA;
       });
 
-      // Find best profitable opportunity
-      const bestProfitable = arbitrageOpportunities.find(opp => opp.isProfit);
+      // Find best profitable opportunity (based on net profit)
+      const bestProfitable = arbitrageOpportunities.find(
+        (opp) => opp.netProfit.isProfit
+      );
       const bestOverall = arbitrageOpportunities[0];
 
       // Calculate statistics
-      const profitableCount = arbitrageOpportunities.filter(opp => opp.isProfit).length;
+      const profitableCount = arbitrageOpportunities.filter(
+        (opp) => opp.netProfit.isProfit
+      ).length;
       const totalOpportunities = arbitrageOpportunities.length;
 
       return {
@@ -834,12 +995,12 @@ class SwapExecutor {
         token1: {
           symbol: token1Info.symbol,
           address: token1Info.address,
-          decimals: token1Info.decimals
+          decimals: token1Info.decimals,
         },
         token2: {
           symbol: token2Info.symbol,
           address: token2Info.address,
-          decimals: token2Info.decimals
+          decimals: token2Info.decimals,
         },
         initialAmount: amountIn,
         dexesAnalyzed: dexNames,
@@ -847,21 +1008,29 @@ class SwapExecutor {
           totalOpportunities,
           profitableOpportunities: profitableCount,
           hasArbitrage: profitableCount > 0,
-          bestProfit: bestProfitable ? bestProfitable.profitLoss : null,
-          bestProfitPercentage: bestProfitable ? bestProfitable.profitLossPercentage : null,
-          bestProfitPath: bestProfitable ? bestProfitable.path : null
+          bestProfit: bestProfitable
+            ? bestProfitable.netProfit.profitLoss
+            : null,
+          bestProfitPercentage: bestProfitable
+            ? bestProfitable.netProfit.profitLossPercentage
+            : null,
+          bestProfitPath: bestProfitable ? bestProfitable.path : null,
+          bestGrossProfit: bestProfitable ? bestProfitable.profitLoss : null,
+          bestGrossProfitPercentage: bestProfitable
+            ? bestProfitable.profitLossPercentage
+            : null,
         },
         bestProfitableOpportunity: bestProfitable || null,
         bestOverallOpportunity: bestOverall,
         allOpportunities: arbitrageOpportunities,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error('Failed to analyze arbitrage', error);
+      this.logger.error("Failed to analyze arbitrage", error);
       return {
         success: false,
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -873,12 +1042,17 @@ class SwapExecutor {
    */
   async scanAllPairsForArbitrage(params) {
     try {
-      const { dexName: dexNames, amountIn, slippage, minProfitPercentage = 0.1 } = params;
+      const {
+        dexName: dexNames,
+        amountIn,
+        slippage,
+        minProfitPercentage = 0.1,
+      } = params;
 
-      this.logger.info('Starting arbitrage scan across all token pairs', {
+      this.logger.info("Starting arbitrage scan across all token pairs", {
         dexes: dexNames,
         amountIn,
-        minProfitPercentage: `${minProfitPercentage}%`
+        minProfitPercentage: `${minProfitPercentage}%`,
       });
 
       // Get all tokens from registry
@@ -887,8 +1061,8 @@ class SwapExecutor {
       if (allTokens.length < 2) {
         return {
           success: false,
-          error: 'Not enough tokens in registry for pair scanning',
-          timestamp: Date.now()
+          error: "Not enough tokens in registry for pair scanning",
+          timestamp: Date.now(),
         };
       }
 
@@ -898,14 +1072,14 @@ class SwapExecutor {
         for (let j = i + 1; j < allTokens.length; j++) {
           tokenPairs.push({
             token1: allTokens[i],
-            token2: allTokens[j]
+            token2: allTokens[j],
           });
         }
       }
 
       this.logger.info(`Scanning ${tokenPairs.length} token pairs`, {
         totalTokens: allTokens.length,
-        totalPairs: tokenPairs.length
+        totalPairs: tokenPairs.length,
       });
 
       const scanResults = [];
@@ -918,16 +1092,19 @@ class SwapExecutor {
         try {
           scannedCount++;
 
-          this.logger.debug(`Scanning pair ${scannedCount}/${tokenPairs.length}`, {
-            pair: `${pair.token1.symbol}/${pair.token2.symbol}`
-          });
+          this.logger.debug(
+            `Scanning pair ${scannedCount}/${tokenPairs.length}`,
+            {
+              pair: `${pair.token1.symbol}/${pair.token2.symbol}`,
+            }
+          );
 
           const analysis = await this.getArbitrageAnalysis({
             token1: pair.token1.symbol,
             token2: pair.token2.symbol,
             dexName: dexNames,
             amountIn,
-            slippage
+            slippage,
           });
 
           if (analysis.success) {
@@ -940,45 +1117,50 @@ class SwapExecutor {
               bestProfitPercentage: analysis.summary.bestProfitPercentage,
               bestProfitPath: analysis.summary.bestProfitPath,
               totalOpportunities: analysis.summary.totalOpportunities,
-              opportunity: analysis.bestProfitableOpportunity
+              opportunity: analysis.bestProfitableOpportunity,
             };
 
             scanResults.push(result);
 
-            // Check if profitable and meets minimum threshold
-            if (analysis.summary.hasArbitrage && analysis.bestProfitableOpportunity) {
-              const profitPercent = parseFloat(analysis.bestProfitableOpportunity.profitLossPercentage);
-              if (profitPercent >= minProfitPercentage) {
+            // Check if profitable and meets minimum threshold (using NET profit after fees)
+            if (
+              analysis.summary.hasArbitrage &&
+              analysis.bestProfitableOpportunity
+            ) {
+              const netProfitPercent = parseFloat(
+                analysis.bestProfitableOpportunity.netProfit
+                  .profitLossPercentage
+              );
+              if (netProfitPercent >= minProfitPercentage) {
                 profitableOpportunities.push({
                   ...result,
-                  opportunity: analysis.bestProfitableOpportunity
+                  opportunity: analysis.bestProfitableOpportunity,
                 });
               }
             }
           } else {
             errorCount++;
-            this.logger.debug('Failed to analyze pair', {
+            this.logger.debug("Failed to analyze pair", {
               pair: `${pair.token1.symbol}/${pair.token2.symbol}`,
-              error: analysis.error
+              error: analysis.error,
             });
           }
 
           // Small delay to avoid overwhelming the RPC
-          await new Promise(resolve => setTimeout(resolve, 100));
-
+          await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (error) {
           errorCount++;
-          this.logger.error('Error scanning pair', {
+          this.logger.error("Error scanning pair", {
             pair: `${pair.token1.symbol}/${pair.token2.symbol}`,
-            error: error.message
+            error: error.message,
           });
         }
       }
 
       // Sort profitable opportunities by profit percentage
       profitableOpportunities.sort((a, b) => {
-        const profitA = parseFloat(a.bestProfitPercentage || '0');
-        const profitB = parseFloat(b.bestProfitPercentage || '0');
+        const profitA = parseFloat(a.bestProfitPercentage || "0");
+        const profitB = parseFloat(b.bestProfitPercentage || "0");
         return profitB - profitA;
       });
 
@@ -986,29 +1168,38 @@ class SwapExecutor {
       this._cleanExpiredOpportunities();
 
       // Add unique IDs to all results with arbitrage and cache them
-      const allResultsWithIds = scanResults.filter(r => r.hasArbitrage).map(result => {
-        const id = this._cacheArbitrageOpportunity({
-          ...result,
-          scanParams: { dexNames, amountIn, slippage, minProfitPercentage }
+      const allResultsWithIds = scanResults
+        .filter((r) => r.hasArbitrage)
+        .map((result) => {
+          const id = this._cacheArbitrageOpportunity({
+            ...result,
+            scanParams: { dexNames, amountIn, slippage, minProfitPercentage },
+          });
+          return { ...result, id };
         });
-        return { ...result, id };
-      });
 
       // Add IDs to profitable opportunities as well
-      const profitableWithIds = profitableOpportunities.slice(0, 20).map(result => {
-        // Check if already cached (should be)
-        const cached = Array.from(this.arbitrageCache.values()).find(
-          c => c.pair === result.pair && c.bestProfitPath === result.bestProfitPath
-        );
-        return { ...result, id: cached?.id || this._cacheArbitrageOpportunity(result) };
-      });
+      const profitableWithIds = profitableOpportunities
+        .slice(0, 20)
+        .map((result) => {
+          // Check if already cached (should be)
+          const cached = Array.from(this.arbitrageCache.values()).find(
+            (c) =>
+              c.pair === result.pair &&
+              c.bestProfitPath === result.bestProfitPath
+          );
+          return {
+            ...result,
+            id: cached?.id || this._cacheArbitrageOpportunity(result),
+          };
+        });
 
-      this.logger.info('Arbitrage scan completed', {
+      this.logger.info("Arbitrage scan completed", {
         totalPairs: tokenPairs.length,
         scanned: scannedCount,
         errors: errorCount,
         profitableFound: profitableOpportunities.length,
-        cached: this.arbitrageCache.size
+        cached: this.arbitrageCache.size,
       });
 
       return {
@@ -1019,20 +1210,20 @@ class SwapExecutor {
           errorCount,
           profitableOpportunities: profitableOpportunities.length,
           minProfitThreshold: `${minProfitPercentage}%`,
-          cachedOpportunities: this.arbitrageCache.size
+          cachedOpportunities: this.arbitrageCache.size,
         },
         dexesAnalyzed: dexNames,
         initialAmount: amountIn,
         profitableOpportunities: profitableWithIds,
         allResults: allResultsWithIds,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error('Failed to scan for arbitrage', error);
+      this.logger.error("Failed to scan for arbitrage", error);
       return {
         success: false,
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -1048,7 +1239,12 @@ class SwapExecutor {
    */
   async executeArbitrageById(params) {
     try {
-      const { arbitrageId, privateKey, amountIn: overrideAmount, slippage: overrideSlippage } = params;
+      const {
+        arbitrageId,
+        privateKey,
+        amountIn: overrideAmount,
+        slippage: overrideSlippage,
+      } = params;
 
       // Get cached opportunity
       const opportunity = this.getArbitrageOpportunity(arbitrageId);
@@ -1056,17 +1252,18 @@ class SwapExecutor {
       if (!opportunity) {
         return {
           success: false,
-          error: 'Arbitrage opportunity not found or expired',
-          message: 'The arbitrage ID is invalid or the opportunity has expired (TTL: 5 minutes)',
-          arbitrageId
+          error: "Arbitrage opportunity not found or expired",
+          message:
+            "The arbitrage ID is invalid or the opportunity has expired (TTL: 5 minutes)",
+          arbitrageId,
         };
       }
 
-      this.logger.info('Executing arbitrage by ID', {
+      this.logger.info("Executing arbitrage by ID", {
         id: arbitrageId,
         pair: opportunity.pair,
         path: opportunity.bestProfitPath,
-        expectedProfit: opportunity.bestProfit
+        expectedProfit: opportunity.bestProfit,
       });
 
       // Extract swap details from opportunity
@@ -1075,21 +1272,24 @@ class SwapExecutor {
       if (!arbDetails) {
         return {
           success: false,
-          error: 'Invalid opportunity structure',
-          message: 'Arbitrage opportunity is missing execution details'
+          error: "Invalid opportunity structure",
+          message: "Arbitrage opportunity is missing execution details",
         };
       }
 
       const { swapADetails, swapBDetails } = arbDetails;
-      const amountIn = overrideAmount || opportunity.scanParams?.amountIn || swapADetails.amountIn;
+      const amountIn =
+        overrideAmount ||
+        opportunity.scanParams?.amountIn ||
+        swapADetails.amountIn;
       const slippage = overrideSlippage || opportunity.scanParams?.slippage;
 
       // Execute first swap (A)
-      this.logger.info('Executing swap A', {
+      this.logger.info("Executing swap A", {
         dex: swapADetails.dex,
         from: swapADetails.from,
         to: swapADetails.to,
-        amount: amountIn
+        amount: amountIn,
       });
 
       const swapAResult = await this.executeSwap({
@@ -1102,26 +1302,26 @@ class SwapExecutor {
         tokenInSymbol: token1.symbol,
         tokenOutSymbol: token2.symbol,
         privateKey,
-        slippage
+        slippage,
       });
 
       if (!swapAResult.success) {
         return {
           success: false,
-          error: 'First swap failed',
+          error: "First swap failed",
           swapA: swapAResult,
-          arbitrageId
+          arbitrageId,
         };
       }
 
       // Use actual output from swap A for swap B
       const actualAmountOut = swapAResult.amountOut || swapBDetails.amountIn;
 
-      this.logger.info('Executing swap B', {
+      this.logger.info("Executing swap B", {
         dex: swapBDetails.dex,
         from: swapBDetails.from,
         to: swapBDetails.to,
-        amount: actualAmountOut
+        amount: actualAmountOut,
       });
 
       // Execute second swap (B)
@@ -1135,17 +1335,17 @@ class SwapExecutor {
         tokenInSymbol: token2.symbol,
         tokenOutSymbol: token1.symbol,
         privateKey,
-        slippage
+        slippage,
       });
 
       if (!swapBResult.success) {
         return {
           success: false,
-          error: 'Second swap failed (first swap succeeded)',
+          error: "Second swap failed (first swap succeeded)",
           swapA: swapAResult,
           swapB: swapBResult,
-          warning: 'You may have partial position. Check your wallet.',
-          arbitrageId
+          warning: "You may have partial position. Check your wallet.",
+          arbitrageId,
         };
       }
 
@@ -1153,12 +1353,15 @@ class SwapExecutor {
       const finalAmount = parseFloat(swapBResult.amountOut);
       const initialAmount = parseFloat(amountIn);
       const actualProfit = finalAmount - initialAmount;
-      const actualProfitPercentage = ((actualProfit / initialAmount) * 100).toFixed(4);
+      const actualProfitPercentage = (
+        (actualProfit / initialAmount) *
+        100
+      ).toFixed(4);
 
       // Remove from cache after successful execution
       this.arbitrageCache.delete(arbitrageId);
 
-      this.logger.info('Arbitrage executed successfully', {
+      this.logger.info("Arbitrage executed successfully", {
         id: arbitrageId,
         pair: opportunity.pair,
         initialAmount: amountIn,
@@ -1166,7 +1369,7 @@ class SwapExecutor {
         actualProfit: actualProfit.toFixed(token1.decimals),
         actualProfitPercentage: `${actualProfitPercentage}%`,
         expectedProfit: opportunity.bestProfit,
-        expectedProfitPercentage: opportunity.bestProfitPercentage
+        expectedProfitPercentage: opportunity.bestProfitPercentage,
       });
 
       return {
@@ -1184,19 +1387,23 @@ class SwapExecutor {
           expectedProfit: opportunity.bestProfit,
           expectedProfitPercentage: opportunity.bestProfitPercentage,
           profitToken: token1.symbol,
-          slippage: actualProfit < parseFloat(opportunity.bestProfit) ?
-            `Slippage: ${((parseFloat(opportunity.bestProfit) - actualProfit) / parseFloat(opportunity.bestProfit) * 100).toFixed(2)}%` :
-            'Better than expected'
+          slippage:
+            actualProfit < parseFloat(opportunity.bestProfit)
+              ? `Slippage: ${(
+                  ((parseFloat(opportunity.bestProfit) - actualProfit) /
+                    parseFloat(opportunity.bestProfit)) *
+                  100
+                ).toFixed(2)}%`
+              : "Better than expected",
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-
     } catch (error) {
-      this.logger.error('Failed to execute arbitrage by ID', error);
+      this.logger.error("Failed to execute arbitrage by ID", error);
       return {
         success: false,
         error: error.message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -1208,9 +1415,9 @@ class SwapExecutor {
     try {
       // This is a simplified calculation
       // Real price impact would require reserve data
-      return 'N/A';
+      return "N/A";
     } catch (error) {
-      return 'N/A';
+      return "N/A";
     }
   }
 
@@ -1225,14 +1432,17 @@ class SwapExecutor {
    * Get executor statistics
    */
   getStats() {
-    const successRate = this.stats.totalSwaps > 0
-      ? ((this.stats.successfulSwaps / this.stats.totalSwaps) * 100).toFixed(2)
-      : '0';
+    const successRate =
+      this.stats.totalSwaps > 0
+        ? ((this.stats.successfulSwaps / this.stats.totalSwaps) * 100).toFixed(
+            2
+          )
+        : "0";
 
     return {
       ...this.stats,
       successRate: `${successRate}%`,
-      availableRouters: this.routers.size
+      availableRouters: this.routers.size,
     };
   }
 
@@ -1244,7 +1454,7 @@ class SwapExecutor {
       totalSwaps: 0,
       successfulSwaps: 0,
       failedSwaps: 0,
-      totalVolumeUSD: 0
+      totalVolumeUSD: 0,
     };
   }
 }

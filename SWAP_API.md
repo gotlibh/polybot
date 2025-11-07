@@ -379,6 +379,19 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
     "profitLossPercentage": "-1.5000%",
     "profitLossToken": "WBTC",
     "isProfit": false,
+    "gasEstimate": {
+      "totalGasUnits": "400000",
+      "gasPriceGwei": "50.00",
+      "gasCostNative": "0.020000",
+      "gasCostInToken": "0.00100000",
+      "nativeToken": "WPOL"
+    },
+    "netProfit": {
+      "profitLoss": "-0.01600000",
+      "profitLossPercentage": "-1.6000%",
+      "profitLossToken": "WBTC",
+      "isProfit": false
+    },
     "swapADetails": {
       "dex": "SushiSwap",
       "from": "WBTC",
@@ -390,7 +403,8 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
         "WBTC": "138.25000000",
         "USDC": "8725000.250000",
         "pairAddress": "0x..."
-      }
+      },
+      "estimatedGas": "200000"
     },
     "swapBDetails": {
       "dex": "SushiSwap",
@@ -403,7 +417,8 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
         "USDC": "8788024.760000",
         "WBTC": "137.25000000",
         "pairAddress": "0x..."
-      }
+      },
+      "estimatedGas": "200000"
     }
   },
   "allOpportunities": [
@@ -447,19 +462,42 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
 
 | Field | Description |
 |-------|-------------|
-| `summary.hasArbitrage` | `true` if any profitable round-trip exists |
-| `summary.bestProfit` | Best profit amount (null if no profit) |
+| `summary.hasArbitrage` | `true` if any profitable round-trip exists (after gas fees) |
+| `summary.bestProfit` | Best NET profit amount after gas fees (null if no profit) |
+| `summary.bestProfitPercentage` | Best NET profit percentage after gas fees |
+| `summary.bestGrossProfit` | Best GROSS profit before gas fees |
 | `summary.bestProfitPath` | DEX path for best profit (e.g., "QuickSwap → SushiSwap") |
-| `bestProfitableOpportunity` | Best profitable round-trip (null if none) |
+| `bestProfitableOpportunity` | Best profitable round-trip after gas fees (null if none) |
 | `bestOverallOpportunity` | Best round-trip overall (even if unprofitable) |
-| `allOpportunities` | All round-trip combinations sorted by profit |
+| `allOpportunities` | All round-trip combinations sorted by NET profit |
+| `profitLoss` | Gross profit/loss before gas fees |
+| `netProfit.profitLoss` | Net profit/loss after deducting gas fees |
+| `gasEstimate.gasCostInToken` | Estimated gas cost converted to the trading token |
+| `gasEstimate.totalGasUnits` | Total gas units for both swaps |
+| `gasEstimate.gasPriceGwei` | Current gas price in Gwei |
+
+**Gas Fee Calculation:**
+
+The arbitrage analysis now includes **automatic gas fee estimation** for both swaps:
+
+1. **Gas Units**: Estimates gas required for each swap (default: 200,000 units per swap)
+2. **Gas Price**: Fetches current gas price from the network (default: 50 Gwei for Polygon)
+3. **Gas Cost**: Calculates total cost in WPOL (native token)
+4. **Conversion**: Converts gas cost to the trading token if different from WPOL
+5. **Net Profit**: Deducts gas fees from gross profit to show real profitability
+
+**Important Notes:**
+- All opportunities are now **sorted by NET profit** (after gas fees)
+- `hasArbitrage` flag indicates profitability **after gas fees**
+- Gas estimates are approximate and actual costs may vary
+- For non-WPOL tokens, gas cost is converted using DEX prices
 
 **Use Cases:**
 
-- **Find Arbitrage**: Discover profitable round-trip swaps across DEXes
-- **Compare DEXes**: See which DEX combinations have least slippage
-- **Market Analysis**: Understand price efficiency across liquidity pools
-- **Risk Assessment**: Evaluate potential losses before executing swaps
+- **Find Arbitrage**: Discover profitable round-trip swaps across DEXes (after gas costs)
+- **Compare DEXes**: See which DEX combinations have least slippage and fees
+- **Market Analysis**: Understand price efficiency and true profitability
+- **Risk Assessment**: Evaluate actual net profit potential including all costs
 
 ---
 
