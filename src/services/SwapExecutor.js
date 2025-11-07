@@ -705,6 +705,7 @@ class SwapExecutor {
             dexA,
             dexB,
             route: `${token1Info.symbol} → ${token2Info.symbol} → ${token1Info.symbol}`,
+            description: `BUY ${quoteA.expectedAmountOut} ${token2Info.symbol} from ${dexA} with ${amountIn} ${token1Info.symbol}, then SELL ${quoteA.expectedAmountOut} ${token2Info.symbol} on ${dexB} for ${finalAmount.toFixed(token1Info.decimals)} ${token1Info.symbol}`,
             initialAmount: amountIn,
             intermediateAmount: amountOut,
             finalAmount: finalAmount.toFixed(token1Info.decimals),
@@ -779,6 +780,153 @@ class SwapExecutor {
       };
     } catch (error) {
       this.logger.error('Failed to analyze arbitrage', error);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: Date.now()
+      };
+    }
+  }
+
+  /**
+   * Scan all token pairs for arbitrage opportunities
+   * @param {Object} params - Scan parameters
+   * @returns {Promise<Object>} - Arbitrage scan results
+   */
+  async scanAllPairsForArbitrage(params) {
+    try {
+      const { dexName: dexNames, amountIn, slippage, minProfitPercentage = 0.1 } = params;
+
+      this.logger.info('Starting arbitrage scan across all token pairs', {
+        dexes: dexNames,
+        amountIn,
+        minProfitPercentage: `${minProfitPercentage}%`
+      });
+
+      // Get all tokens from registry
+      const allTokens = this.tokenResolver.getAllTokens();
+
+      if (allTokens.length < 2) {
+        return {
+          success: false,
+          error: 'Not enough tokens in registry for pair scanning',
+          timestamp: Date.now()
+        };
+      }
+
+      // Generate all unique pairs
+      const tokenPairs = [];
+      for (let i = 0; i < allTokens.length; i++) {
+        for (let j = i + 1; j < allTokens.length; j++) {
+          tokenPairs.push({
+            token1: allTokens[i],
+            token2: allTokens[j]
+          });
+        }
+      }
+
+      this.logger.info(`Scanning ${tokenPairs.length} token pairs`, {
+        totalTokens: allTokens.length,
+        totalPairs: tokenPairs.length
+      });
+
+      const scanResults = [];
+      const profitableOpportunities = [];
+      let scannedCount = 0;
+      let errorCount = 0;
+
+      // Scan each pair (with rate limiting to avoid overwhelming the system)
+      for (const pair of tokenPairs) {
+        try {
+          scannedCount++;
+
+          this.logger.debug(`Scanning pair ${scannedCount}/${tokenPairs.length}`, {
+            pair: `${pair.token1.symbol}/${pair.token2.symbol}`
+          });
+
+          const analysis = await this.getArbitrageAnalysis({
+            token1: pair.token1.symbol,
+            token2: pair.token2.symbol,
+            dexName: dexNames,
+            amountIn,
+            slippage
+          });
+
+          if (analysis.success) {
+            const result = {
+              pair: analysis.pair,
+              token1: analysis.token1,
+              token2: analysis.token2,
+              hasArbitrage: analysis.summary.hasArbitrage,
+              bestProfit: analysis.summary.bestProfit,
+              bestProfitPercentage: analysis.summary.bestProfitPercentage,
+              bestProfitPath: analysis.summary.bestProfitPath,
+              totalOpportunities: analysis.summary.totalOpportunities
+            };
+
+            scanResults.push(result);
+
+            // Check if profitable and meets minimum threshold
+            if (analysis.summary.hasArbitrage && analysis.bestProfitableOpportunity) {
+              const profitPercent = parseFloat(analysis.bestProfitableOpportunity.profitLossPercentage);
+              if (profitPercent >= minProfitPercentage) {
+                profitableOpportunities.push({
+                  ...result,
+                  opportunity: analysis.bestProfitableOpportunity
+                });
+              }
+            }
+          } else {
+            errorCount++;
+            this.logger.debug('Failed to analyze pair', {
+              pair: `${pair.token1.symbol}/${pair.token2.symbol}`,
+              error: analysis.error
+            });
+          }
+
+          // Small delay to avoid overwhelming the RPC
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+        } catch (error) {
+          errorCount++;
+          this.logger.error('Error scanning pair', {
+            pair: `${pair.token1.symbol}/${pair.token2.symbol}`,
+            error: error.message
+          });
+        }
+      }
+
+      // Sort profitable opportunities by profit percentage
+      profitableOpportunities.sort((a, b) => {
+        const profitA = parseFloat(a.bestProfitPercentage || '0');
+        const profitB = parseFloat(b.bestProfitPercentage || '0');
+        return profitB - profitA;
+      });
+
+      this.logger.info('Arbitrage scan completed', {
+        totalPairs: tokenPairs.length,
+        scanned: scannedCount,
+        errors: errorCount,
+        profitableFound: profitableOpportunities.length
+      });
+
+      return {
+        success: true,
+        scan: {
+          totalPairs: tokenPairs.length,
+          scannedPairs: scannedCount,
+          errorCount,
+          profitableOpportunities: profitableOpportunities.length,
+          minProfitThreshold: `${minProfitPercentage}%`
+        },
+        dexesAnalyzed: dexNames,
+        initialAmount: amountIn,
+        profitableOpportunities: profitableOpportunities.slice(0, 20), // Return top 20
+        allResults: scanResults.filter(r => r.hasArbitrage), // Only return pairs with any arbitrage
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      this.logger.error('Failed to scan for arbitrage', error);
       return {
         success: false,
         error: error.message,

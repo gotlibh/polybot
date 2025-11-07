@@ -463,6 +463,173 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
 
 ---
 
+### Scan All Token Pairs for Arbitrage
+
+**POST** `/api/v1/swap/scan-arbitrage`
+
+Automatically scans all possible token pair combinations from the token registry to find arbitrage opportunities. This is a comprehensive scan that checks every pair against multiple DEXes.
+
+**Request Body:**
+```json
+{
+  "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
+  "amountIn": "1000",
+  "minProfitPercentage": 0.5,
+  "slippage": 0.5
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `dexName` | array | Yes | Array of DEX names to scan |
+| `amountIn` | string | Yes | Test amount for arbitrage calculations |
+| `minProfitPercentage` | number | No | Minimum profit % to report (default: 0.1%) |
+| `slippage` | number | No | Slippage tolerance % |
+
+**Example:**
+```bash
+curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dexName": ["QuickSwap", "SushiSwap"],
+    "amountIn": "1000",
+    "minProfitPercentage": 0.5
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "scan": {
+    "totalPairs": 190,
+    "scannedPairs": 190,
+    "errorCount": 12,
+    "profitableOpportunities": 3,
+    "minProfitThreshold": "0.5%"
+  },
+  "dexesAnalyzed": ["QuickSwap", "SushiSwap"],
+  "initialAmount": "1000",
+  "profitableOpportunities": [
+    {
+      "pair": "WMATIC/USDC",
+      "token1": {
+        "symbol": "WMATIC",
+        "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+        "decimals": 18
+      },
+      "token2": {
+        "symbol": "USDC",
+        "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        "decimals": 6
+      },
+      "hasArbitrage": true,
+      "bestProfit": "8.5000",
+      "bestProfitPercentage": "0.85%",
+      "bestProfitPath": "QuickSwap → SushiSwap",
+      "totalOpportunities": 4,
+      "opportunity": {
+        "path": "QuickSwap → SushiSwap",
+        "dexA": "QuickSwap",
+        "dexB": "SushiSwap",
+        "route": "WMATIC → USDC → WMATIC",
+        "initialAmount": "1000",
+        "intermediateAmount": "550.25",
+        "finalAmount": "1008.50",
+        "profitLoss": "8.5000",
+        "profitLossPercentage": "0.85%",
+        "profitLossToken": "WMATIC",
+        "isProfit": true,
+        "swapADetails": {
+          "dex": "QuickSwap",
+          "from": "WMATIC",
+          "to": "USDC",
+          "amountIn": "1000",
+          "amountOut": "550.25",
+          "priceImpact": "0.0234%"
+        },
+        "swapBDetails": {
+          "dex": "SushiSwap",
+          "from": "USDC",
+          "to": "WMATIC",
+          "amountIn": "550.25",
+          "amountOut": "1008.50",
+          "priceImpact": "0.0198%"
+        }
+      }
+    },
+    {
+      "pair": "WETH/USDC",
+      "bestProfit": "5.2500",
+      "bestProfitPercentage": "0.53%",
+      "bestProfitPath": "SushiSwap → QuickSwap",
+      "opportunity": { }
+    }
+  ],
+  "allResults": [
+    {
+      "pair": "WMATIC/USDC",
+      "hasArbitrage": true,
+      "bestProfitPercentage": "0.85%"
+    },
+    {
+      "pair": "WETH/USDC",
+      "hasArbitrage": true,
+      "bestProfitPercentage": "0.53%"
+    }
+  ],
+  "timestamp": 1699000000000
+}
+```
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `scan.totalPairs` | Total number of token pairs generated |
+| `scan.scannedPairs` | Number of pairs successfully scanned |
+| `scan.errorCount` | Number of pairs that failed to scan |
+| `scan.profitableOpportunities` | Count of profitable opportunities found |
+| `profitableOpportunities` | Top 20 profitable opportunities (sorted by profit %) |
+| `allResults` | All pairs with any arbitrage detected |
+
+**How It Works:**
+
+1. Fetches all tokens from the registry (e.g., 20 tokens)
+2. Generates all unique pairs (e.g., 190 combinations from 20 tokens)
+3. For each pair:
+   - Runs full arbitrage analysis across specified DEXes
+   - Checks both swap directions
+   - Calculates real profit/loss
+4. Filters results by minimum profit threshold
+5. Returns sorted list of profitable opportunities
+
+**Performance Notes:**
+
+- With 20 tokens: ~190 pairs to scan
+- With 2 DEXes: ~760 individual swap quotes (190 × 2 × 2)
+- Estimated time: 30-60 seconds (with 100ms rate limiting)
+- Consider running during off-peak hours for faster results
+
+**Use Cases:**
+
+- **Automated Discovery**: Find arbitrage opportunities without manual pair selection
+- **Market Monitoring**: Regular scans to detect temporary price inefficiencies
+- **Strategy Development**: Identify which pairs have consistent arbitrage potential
+- **Portfolio Optimization**: Discover most profitable trading pairs
+
+**Tips:**
+
+- Use higher `minProfitPercentage` (e.g., 1%) to reduce noise
+- Start with 2 DEXes to minimize scan time
+- Use reasonable `amountIn` that reflects actual trading volume
+- Run scans periodically to catch new opportunities
+
+---
+
 ### Execute Swap
 
 **POST** `/api/v1/swap/execute`

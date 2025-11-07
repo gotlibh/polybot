@@ -224,6 +224,50 @@ class SwapAPI {
       }
     });
 
+    // Scan all pairs for arbitrage
+    this.app.post('/api/v1/swap/scan-arbitrage', async (req, res) => {
+      try {
+        // Validate required fields
+        if (!req.body.dexName || !Array.isArray(req.body.dexName)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid request',
+            message: 'dexName must be an array of DEX names'
+          });
+        }
+
+        if (!req.body.amountIn) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid request',
+            message: 'amountIn is required'
+          });
+        }
+
+        this.logger.info('Starting arbitrage scan', {
+          dexes: req.body.dexName,
+          amountIn: req.body.amountIn,
+          minProfitPercentage: req.body.minProfitPercentage || 0.1
+        });
+
+        // Run the scan
+        const result = await this.swapExecutor.scanAllPairsForArbitrage({
+          dexName: req.body.dexName,
+          amountIn: req.body.amountIn,
+          slippage: req.body.slippage,
+          minProfitPercentage: req.body.minProfitPercentage
+        });
+
+        res.json(result);
+      } catch (error) {
+        this.logger.error('Failed to scan for arbitrage', error);
+        res.status(500).json({
+          success: false,
+          error: error.message
+        });
+      }
+    });
+
     // Execute swap
     this.app.post('/api/v1/swap/execute', async (req, res) => {
       try {
@@ -452,6 +496,7 @@ class SwapAPI {
         'GET /health',
         'GET /api/v1/routers',
         'POST /api/v1/swap/quote',
+        'POST /api/v1/swap/scan-arbitrage',
         'POST /api/v1/swap/execute',
         'GET /api/v1/stats',
         'POST /api/v1/stats/reset',
