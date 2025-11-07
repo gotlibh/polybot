@@ -1050,6 +1050,149 @@ curl -X POST http://localhost:3000/api/v1/tokens/resolve \
 
 ---
 
+### Get Token Balance
+
+**POST** `/api/v1/balance`
+
+Get token balance for a specific address. Can check a single token or all tokens in the registry.
+
+**Request Body (single token):**
+```json
+{
+  "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
+  "token": "WPOL"
+}
+```
+
+**Request Body (all tokens):**
+```json
+{
+  "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c"
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `address` | string | Yes | Wallet address to check balance for |
+| `token` | string | No | Token symbol or address (if omitted, checks all tokens) |
+
+**Example (single token):**
+```bash
+curl -X POST http://localhost:3000/api/v1/balance \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
+    "token": "WPOL"
+  }'
+```
+
+**Response (single token):**
+```json
+{
+  "success": true,
+  "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
+  "token": {
+    "symbol": "WPOL",
+    "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    "name": "Wrapped POL",
+    "decimals": 18,
+    "balance": "27.845116034158749827",
+    "balanceRaw": "27845116034158749827"
+  },
+  "timestamp": 1699000000000
+}
+```
+
+**Example (all tokens):**
+```bash
+curl -X POST http://localhost:3000/api/v1/balance \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c"
+  }'
+```
+
+**Response (all tokens):**
+```json
+{
+  "success": true,
+  "address": "0xcdaA95C0c9859063614Ad9f9fd114B914B490B9c",
+  "summary": {
+    "totalTokens": 16,
+    "tokensWithBalance": 3,
+    "tokensWithoutBalance": 13,
+    "errors": 0
+  },
+  "balances": {
+    "withBalance": [
+      {
+        "symbol": "WPOL",
+        "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+        "name": "Wrapped POL",
+        "decimals": 18,
+        "balance": "27.845116034158749827",
+        "balanceRaw": "27845116034158749827",
+        "hasBalance": true
+      },
+      {
+        "symbol": "USDC",
+        "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        "name": "USD Coin (PoS)",
+        "decimals": 6,
+        "balance": "150.250000",
+        "balanceRaw": "150250000",
+        "hasBalance": true
+      },
+      {
+        "symbol": "UNI",
+        "address": "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
+        "name": "Uniswap (PoS)",
+        "decimals": 18,
+        "balance": "5.234567891234567890",
+        "balanceRaw": "5234567891234567890",
+        "hasBalance": true
+      }
+    ],
+    "withoutBalance": [
+      {
+        "symbol": "USDT",
+        "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+        "name": "Tether USD (PoS)",
+        "decimals": 6,
+        "balance": "0.0",
+        "balanceRaw": "0",
+        "hasBalance": false
+      }
+    ]
+  },
+  "timestamp": 1699000000000
+}
+```
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `address` | Wallet address that was queried |
+| `token` | Token details (single token mode only) |
+| `summary` | Summary of balance results (all tokens mode) |
+| `balances.withBalance` | Array of tokens with non-zero balance |
+| `balances.withoutBalance` | Array of tokens with zero balance |
+| `balances.errors` | Array of tokens that failed to query (if any) |
+
+**Use Cases:**
+
+- **Wallet Monitoring**: Check token holdings before executing trades
+- **Portfolio Overview**: Get complete view of all token balances
+- **Balance Verification**: Confirm sufficient balance before swap execution
+- **Multi-Token Tracking**: Monitor multiple token balances in one call
+
+---
+
 ## Request Examples
 
 ### Example 1: Get Quote and Execute Swap

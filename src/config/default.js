@@ -7,7 +7,7 @@ export default {
   rpc: {
     url:
       process.env.RPC_URL ||
-      // "wss://polygon-mainnet.g.alchemy.com/v2/wowndxPeV_wApZY_Ulv28NIxnq2R3Gw0" ||
+      "wss://polygon-mainnet.g.alchemy.com/v2/wowndxPeV_wApZY_Ulv28NIxnq2R3Gw0" ||
       "ws://192.168.1.10:8546",
     reconnect: true,
     reconnectDelay: 5000,
