@@ -49,64 +49,64 @@ export default {
   // },
 
   // DeFi Tokens
-  // AAVE: {
-  //   address: "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
-  //   symbol: "AAVE",
-  //   name: "Aave (PoS)",
-  //   decimals: 18,
-  //   type: "defi",
-  // },
-  // LINK: {
-  //   address: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39",
-  //   symbol: "LINK",
-  //   name: "ChainLink Token",
-  //   decimals: 18,
-  //   type: "defi",
-  // },
-  // UNI: {
-  //   address: "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
-  //   symbol: "UNI",
-  //   name: "Uniswap (PoS)",
-  //   decimals: 18,
-  //   type: "defi",
-  // },
-  // SUSHI: {
-  //   address: "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",
-  //   symbol: "SUSHI",
-  //   name: "SushiToken (PoS)",
-  //   decimals: 18,
-  //   type: "defi",
-  // },
-  // CRV: {
-  //   address: "0x172370d5Cd63279eFa6d502DAB29171933a610AF",
-  //   symbol: "CRV",
-  //   name: "CRV (PoS)",
-  //   decimals: 18,
-  //   type: "defi",
-  // },
+  AAVE: {
+    address: "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
+    symbol: "AAVE",
+    name: "Aave (PoS)",
+    decimals: 18,
+    type: "defi",
+  },
+  LINK: {
+    address: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39",
+    symbol: "LINK",
+    name: "ChainLink Token",
+    decimals: 18,
+    type: "defi",
+  },
+  UNI: {
+    address: "0xb33EaAd8d922B1083446DC23f610c2567fB5180f",
+    symbol: "UNI",
+    name: "Uniswap (PoS)",
+    decimals: 18,
+    type: "defi",
+  },
+  SUSHI: {
+    address: "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",
+    symbol: "SUSHI",
+    name: "SushiToken (PoS)",
+    decimals: 18,
+    type: "defi",
+  },
+  CRV: {
+    address: "0x172370d5Cd63279eFa6d502DAB29171933a610AF",
+    symbol: "CRV",
+    name: "CRV (PoS)",
+    decimals: 18,
+    type: "defi",
+  },
 
   // // Gaming & Metaverse
-  // GHST: {
-  //   address: "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7",
-  //   symbol: "GHST",
-  //   name: "Aavegotchi GHST Token",
-  //   decimals: 18,
-  //   type: "gaming",
-  // },
-  // SAND: {
-  //   address: "0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683",
-  //   symbol: "SAND",
-  //   name: "SAND",
-  //   decimals: 18,
-  //   type: "gaming",
-  // },
-  // MANA: {
-  //   address: "0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4",
-  //   symbol: "MANA",
-  //   name: "Decentraland MANA",
-  //   decimals: 18,
-  //   type: "gaming",
-  // },
+  GHST: {
+    address: "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7",
+    symbol: "GHST",
+    name: "Aavegotchi GHST Token",
+    decimals: 18,
+    type: "gaming",
+  },
+  SAND: {
+    address: "0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683",
+    symbol: "SAND",
+    name: "SAND",
+    decimals: 18,
+    type: "gaming",
+  },
+  MANA: {
+    address: "0xA1c57f48F0Deb89f569dFbE6E2B7f46D33606fD4",
+    symbol: "MANA",
+    name: "Decentraland MANA",
+    decimals: 18,
+    type: "gaming",
+  },
 
   // Note: Native MATIC (0x0000000000000000000000000000000000001010) removed
   // Native tokens don't work with Uniswap V2-style DEX routers

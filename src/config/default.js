@@ -108,36 +108,64 @@ export default {
         name: "QuickSwap",
         address: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
         enabled: true, // QuickSwap V2 Router (verified)
+
+        // Pair filtering - control which pairs to query
+        // Format: ["TOKEN1/TOKEN2", "TOKEN3/TOKEN4"]
+
+        // supportedPairs: Whitelist of pairs this DEX supports
+        // - If defined (non-empty), ONLY these pairs will be queried
+        // - If empty/undefined, all pairs are allowed (except unsupported)
+        // Example: ["USDC/WPOL", "WETH/USDC", "DAI/USDC"]
+        supportedPairs: [],
+
+        // unsupportedPairs: Blacklist of pairs this DEX doesn't support
+        // - These pairs will be skipped
+        // - Only used when supportedPairs is empty
+        // - Ignored if supportedPairs is defined
+        // Example: ["LINK/CRV", "AAVE/UNI"]
+        unsupportedPairs: [],
       },
       {
         name: "SushiSwap",
         address: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
         enabled: true, // SushiSwap Router (verified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
       {
         name: "ApeSwap",
         address: "0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607",
         enabled: true, // ApeSwap Router (not verified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
       {
         name: "Dfyn",
         address: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
         enabled: true, // Dfyn Router V2 (verified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
       {
         name: "Polycat Finance",
         address: "0x94930a328162957FF1dd48900aF67B5439336cBD",
         enabled: true, // Polycat Router (verified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
       {
         name: "Cometh",
         address: "0x93bcDc45f7e62f89a8e901DC4A0E2c6C427D9F25",
         enabled: false, // Cometh Router (unverified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
       {
         name: "JetSwap",
         address: "0x5C6EC38fb0e2609672BDf628B1fD605A523E5923",
         enabled: true, // JetSwap Router (unverified)
+        supportedPairs: [],
+        unsupportedPairs: [],
       },
     ],
 

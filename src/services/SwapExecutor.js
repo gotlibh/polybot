@@ -135,6 +135,8 @@ class SwapExecutor {
 
         this.logger.info(`Initialized router: ${dexConfig.name}`, {
           address: dexConfig.address,
+          supportedPairs: dexConfig.supportedPairs?.length || 0,
+          unsupportedPairs: dexConfig.unsupportedPairs?.length || 0,
         });
       } catch (error) {
         this.logger.error(
@@ -142,6 +144,70 @@ class SwapExecutor {
           error
         );
       }
+    }
+  }
+
+  /**
+   * Check if a token pair is supported by a DEX
+   * @param {string} dexName - DEX name
+   * @param {string} token1Symbol - First token symbol
+   * @param {string} token2Symbol - Second token symbol
+   * @param {Object} options - Filtering options
+   * @param {boolean} options.useUnsupportedOnly - If true, use unsupported list even when supported list exists
+   * @returns {boolean} - True if pair should be queried, false if should be skipped
+   */
+  isPairSupported(dexName, token1Symbol, token2Symbol, options = {}) {
+    const routerInfo = this.routers.get(dexName);
+    if (!routerInfo || !routerInfo.config) {
+      return true; // If no config, assume supported (will fail naturally if not)
+    }
+
+    const supportedPairs = routerInfo.config.supportedPairs || [];
+    const unsupportedPairs = routerInfo.config.unsupportedPairs || [];
+    const useUnsupportedOnly = options.useUnsupportedOnly || false;
+
+    // Normalize pair format (both directions)
+    const pair1 = `${token1Symbol}/${token2Symbol}`;
+    const pair2 = `${token2Symbol}/${token1Symbol}`;
+
+    // Helper function to check if pair matches in list (case-insensitive)
+    const isPairInList = (list) => {
+      return list.some(
+        (configPair) =>
+          configPair.toUpperCase() === pair1.toUpperCase() ||
+          configPair.toUpperCase() === pair2.toUpperCase()
+      );
+    };
+
+    // Logic based on configuration:
+    // 1. If supportedPairs is defined (non-empty) AND useUnsupportedOnly is false:
+    //    - Only query pairs in supportedPairs list
+    // 2. If supportedPairs is defined AND useUnsupportedOnly is true:
+    //    - Ignore supportedPairs, use unsupported list instead
+    // 3. If supportedPairs is empty:
+    //    - Query all pairs except those in unsupportedPairs
+
+    if (supportedPairs.length > 0 && !useUnsupportedOnly) {
+      // Whitelist mode: only supported pairs
+      const isSupported = isPairInList(supportedPairs);
+      if (!isSupported) {
+        this.logger.debug(
+          `Pair ${pair1} is not in supported list for ${dexName}`
+        );
+      }
+      return isSupported;
+    } else if (unsupportedPairs.length > 0) {
+      // Blacklist mode: all pairs except unsupported
+      const isUnsupported = isPairInList(unsupportedPairs);
+      if (isUnsupported) {
+        this.logger.debug(
+          `Pair ${pair1} is marked as unsupported on ${dexName}`
+        );
+      }
+      return !isUnsupported;
+    } else {
+      // No filters: query everything
+      return true;
     }
   }
 
@@ -664,11 +730,45 @@ class SwapExecutor {
         parallel,
       });
 
+      // Filter out DEXes that don't support this pair
+      const skippedDexes = [];
+      const useUnsupportedOnly = params.useUnsupportedOnly || false;
+
+      const supportedDexNames = dexNames.filter((dexName) => {
+        const isSupported = this.isPairSupported(
+          dexName,
+          params.tokenInSymbol || "UNKNOWN",
+          params.tokenOutSymbol || "UNKNOWN",
+          { useUnsupportedOnly }
+        );
+
+        if (!isSupported) {
+          skippedDexes.push({
+            success: false,
+            dex: dexName,
+            error: "Pair not supported (skipped by configuration)",
+            skipped: true,
+            timestamp: Date.now(),
+          });
+        }
+
+        return isSupported;
+      });
+
+      if (supportedDexNames.length === 0) {
+        return {
+          success: false,
+          error: "All DEXes have this pair marked as unsupported",
+          failedQuotes: skippedDexes,
+          timestamp: Date.now(),
+        };
+      }
+
       let quotes;
 
       if (parallel) {
-        // Query all DEXes in parallel
-        const quotePromises = dexNames.map((dexName) =>
+        // Query all supported DEXes in parallel
+        const quotePromises = supportedDexNames.map((dexName) =>
           this.getSwapQuote({ ...params, dexName }).catch((error) => ({
             success: false,
             dex: dexName,
@@ -679,9 +779,9 @@ class SwapExecutor {
 
         quotes = await Promise.all(quotePromises);
       } else {
-        // Query all DEXes sequentially
+        // Query all supported DEXes sequentially
         quotes = [];
-        for (const dexName of dexNames) {
+        for (const dexName of supportedDexNames) {
           try {
             const quote = await this.getSwapQuote({ ...params, dexName });
             quotes.push(quote);
@@ -696,9 +796,12 @@ class SwapExecutor {
         }
       }
 
+      // Combine skipped DEXes with actual quotes
+      const allQuotes = [...quotes, ...skippedDexes];
+
       // Filter successful quotes
-      const validQuotes = quotes.filter((q) => q.success);
-      const failedQuotes = quotes.filter((q) => !q.success);
+      const validQuotes = allQuotes.filter((q) => q.success);
+      const failedQuotes = allQuotes.filter((q) => !q.success);
 
       if (validQuotes.length === 0) {
         return {
