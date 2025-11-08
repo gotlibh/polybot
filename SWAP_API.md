@@ -818,6 +818,148 @@ curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
 
 ---
 
+### Discover Supported/Unsupported Pairs
+
+**POST** `/api/v1/swap/discover-pairs`
+
+Automatically discover which token pairs are supported by each DEX and generate configuration for `supportedPairs` and `unsupportedPairs`. This helps optimize arbitrage scanning by avoiding failed RPC calls.
+
+**Request Body:**
+```json
+{
+  "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
+  "testAmount": "1",
+  "outputMode": "both"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dexName` | array | Yes | Array of DEX names to test |
+| `testAmount` | string | No | Amount to use for testing (default: "1") |
+| `outputMode` | string | No | Output mode: "supported", "unsupported", or "both" (default: "both") |
+
+**Request Example:**
+```bash
+curl -X POST http://localhost:30000/api/v1/swap/discover-pairs \
+  -H "X-API-Key: your-secret-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dexName": ["QuickSwap", "SushiSwap"],
+    "testAmount": "1",
+    "outputMode": "both"
+  }'
+```
+
+**Response Example:**
+```json
+{
+  "success": true,
+  "discovery": {
+    "dexes": ["QuickSwap", "SushiSwap"],
+    "totalPairs": 45,
+    "testAmount": "1",
+    "durationSeconds": 12.34
+  },
+  "results": {
+    "QuickSwap": {
+      "address": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+      "tested": 45,
+      "errors": 0,
+      "supportedCount": 38,
+      "unsupportedCount": 7,
+      "successRate": "84%",
+      "supported": [
+        "USDC/WPOL",
+        "WETH/USDC",
+        "DAI/USDC"
+      ],
+      "unsupported": [
+        "LINK/CRV",
+        "AAVE/UNI"
+      ]
+    },
+    "SushiSwap": {
+      "address": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+      "tested": 45,
+      "errors": 0,
+      "supportedCount": 35,
+      "unsupportedCount": 10,
+      "successRate": "78%",
+      "supported": ["USDC/WPOL", "WETH/USDC"],
+      "unsupported": ["LINK/CRV", "GHST/SAND"]
+    }
+  },
+  "configuration": {
+    "QuickSwap": {
+      "address": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+      "supportedPairs": ["USDC/WPOL", "WETH/USDC"],
+      "unsupportedPairs": ["LINK/CRV", "AAVE/UNI"],
+      "recommendation": "Use unsupportedPairs (blacklist) - high success rate"
+    },
+    "SushiSwap": {
+      "address": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+      "supportedPairs": ["USDC/WPOL", "WETH/USDC"],
+      "unsupportedPairs": ["LINK/CRV", "GHST/SAND"],
+      "recommendation": "Use unsupportedPairs (blacklist) - high success rate"
+    }
+  },
+  "timestamp": 1699000000000
+}
+```
+
+**Response Fields:**
+
+| Field | Description |
+|-------|-------------|
+| `discovery.dexes` | DEXes that were tested |
+| `discovery.totalPairs` | Number of unique pairs tested |
+| `discovery.durationSeconds` | Time taken for discovery |
+| `results[dex].supportedCount` | Number of pairs with liquidity |
+| `results[dex].unsupportedCount` | Number of pairs without liquidity |
+| `results[dex].successRate` | Percentage of supported pairs |
+| `configuration[dex].recommendation` | Suggested approach (whitelist vs blacklist) |
+
+**How It Works:**
+
+1. Tests all token pairs from the registry against specified DEXes
+2. Uses `router.getAmountsOut()` to check if liquidity exists
+3. Categorizes each pair as supported or unsupported
+4. Generates ready-to-use configuration based on results
+5. Provides recommendations based on success rate:
+   - **>70%**: Use `unsupportedPairs` (blacklist) - most pairs work
+   - **30-70%**: Either approach works
+   - **<30%**: Use `supportedPairs` (whitelist) - most pairs don't work
+
+**Use Cases:**
+
+- **Initial Setup**: Discover which pairs work before configuring filters
+- **New DEX**: Test a newly added DEX to find its supported pairs
+- **Token Updates**: After adding new tokens, discover which DEXes support them
+- **Optimization**: Identify unsupported pairs to skip during arbitrage scanning
+- **Monitoring**: Periodically check for new liquidity pools
+
+**Performance Notes:**
+
+- Tests pairs in batches of 10 with 100ms delay between batches
+- Makes read-only RPC calls (no transactions)
+- Typical duration: 10-60 seconds depending on number of pairs and DEXes
+- With 45 pairs × 3 DEXes = ~15 seconds
+
+**CLI Alternative:**
+
+You can also use the standalone script:
+
+```bash
+node scripts/discover-pairs.js --dex=QuickSwap,SushiSwap --output=both
+```
+
+See [PAIR_DISCOVERY_GUIDE.md](PAIR_DISCOVERY_GUIDE.md) for complete documentation.
+
+---
+
 ### Execute Arbitrage by ID
 
 **POST** `/api/v1/swap/execute-arbitrage`

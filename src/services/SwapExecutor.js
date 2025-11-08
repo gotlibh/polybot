@@ -898,7 +898,14 @@ class SwapExecutor {
    */
   async getArbitrageAnalysis(params) {
     try {
-      const { token1, token2, dexName: dexNames, amountIn, slippage, parallel } = params;
+      const {
+        token1,
+        token2,
+        dexName: dexNames,
+        amountIn,
+        slippage,
+        parallel,
+      } = params;
 
       this.logger.info("Analyzing arbitrage opportunities", {
         pair: `${token1}/${token2}`,
@@ -939,9 +946,14 @@ class SwapExecutor {
       // Track unsupported pairs by DEX
       const unsupportedPairs = [];
 
-      // Track failed quotes from direction A
+      // Track failed quotes from direction A (only actual failures, not skipped by config)
       if (quotesA.failedQuotes && quotesA.failedQuotes.length > 0) {
-        quotesA.failedQuotes.forEach(failedQuote => {
+        quotesA.failedQuotes.forEach((failedQuote) => {
+          // Skip if this was skipped by configuration (not an actual failure)
+          if (failedQuote.skipped) {
+            return;
+          }
+
           unsupportedPairs.push({
             dex: failedQuote.dex,
             direction: `${token1Info.symbol} → ${token2Info.symbol}`,
@@ -976,9 +988,14 @@ class SwapExecutor {
 
         if (!quotesB.success) continue;
 
-        // Track failed quotes from direction B
+        // Track failed quotes from direction B (only actual failures, not skipped by config)
         if (quotesB.failedQuotes && quotesB.failedQuotes.length > 0) {
-          quotesB.failedQuotes.forEach(failedQuote => {
+          quotesB.failedQuotes.forEach((failedQuote) => {
+            // Skip if this was skipped by configuration (not an actual failure)
+            if (failedQuote.skipped) {
+              return;
+            }
+
             unsupportedPairs.push({
               dex: failedQuote.dex,
               direction: `${token2Info.symbol} → ${token1Info.symbol}`,
@@ -997,8 +1014,8 @@ class SwapExecutor {
           const initialAmount = parseFloat(amountIn);
 
           // Estimate gas costs for both swaps (default 200k per swap if not available)
-          const gasA = quoteA.estimatedGas ? BigInt(quoteA.estimatedGas) : 200000n;
-          const gasB = quoteB.estimatedGas ? BigInt(quoteB.estimatedGas) : 200000n;
+          const gasA = quoteA.estimatedGas ? BigInt(quoteA.estimatedGas) : 2n;
+          const gasB = quoteB.estimatedGas ? BigInt(quoteB.estimatedGas) : 2n;
           const totalGas = gasA + gasB;
 
           // Get current gas price (estimate ~50 gwei for Polygon)
@@ -1182,7 +1199,8 @@ class SwapExecutor {
         bestProfitableOpportunity: bestProfitable || null,
         bestOverallOpportunity: bestOverall,
         allOpportunities: arbitrageOpportunities,
-        unsupportedPairs: unsupportedPairs.length > 0 ? unsupportedPairs : undefined,
+        unsupportedPairs:
+          unsupportedPairs.length > 0 ? unsupportedPairs : undefined,
         timestamp: Date.now(),
       };
     } catch (error) {
@@ -1287,7 +1305,10 @@ class SwapExecutor {
             scanResults.push(result);
 
             // Collect unsupported pairs from this analysis
-            if (analysis.unsupportedPairs && analysis.unsupportedPairs.length > 0) {
+            if (
+              analysis.unsupportedPairs &&
+              analysis.unsupportedPairs.length > 0
+            ) {
               allUnsupportedPairs.push(...analysis.unsupportedPairs);
             }
 
@@ -1365,7 +1386,7 @@ class SwapExecutor {
 
       // Group unsupported pairs by DEX for better readability
       const unsupportedByDex = {};
-      allUnsupportedPairs.forEach(item => {
+      allUnsupportedPairs.forEach((item) => {
         if (!unsupportedByDex[item.dex]) {
           unsupportedByDex[item.dex] = [];
         }
@@ -1400,11 +1421,14 @@ class SwapExecutor {
         initialAmount: amountIn,
         profitableOpportunities: profitableWithIds,
         allResults: allResultsWithIds,
-        unsupportedPairs: allUnsupportedPairs.length > 0 ? {
-          total: allUnsupportedPairs.length,
-          byDex: unsupportedByDex,
-          all: allUnsupportedPairs,
-        } : undefined,
+        unsupportedPairs:
+          allUnsupportedPairs.length > 0
+            ? {
+                total: allUnsupportedPairs.length,
+                byDex: unsupportedByDex,
+                all: allUnsupportedPairs,
+              }
+            : undefined,
         timestamp: Date.now(),
       };
     } catch (error) {
@@ -1615,6 +1639,218 @@ class SwapExecutor {
    */
   getAvailableRouters() {
     return Array.from(this.routers.keys());
+  }
+
+  /**
+   * Discover which pairs are supported/unsupported for specified DEXes
+   * @param {Object} params - Discovery parameters
+   * @param {Array<string>} params.dexName - DEX names to test
+   * @param {string} params.testAmount - Amount to use for testing (default: "1")
+   * @param {string} params.outputMode - "supported", "unsupported", or "both"
+   * @returns {Promise<Object>} - Discovery results
+   */
+  async discoverPairs(params) {
+    const { dexName, testAmount = "1", outputMode = "both" } = params;
+
+    this.logger.info("Starting pair discovery", {
+      dexes: dexName,
+      testAmount,
+      outputMode,
+    });
+
+    // Get all tokens from token resolver
+    const allTokensArray = await this.tokenResolver.getAllTokens();
+
+    // Convert array to object keyed by symbol for easy lookup
+    const allTokens = {};
+    allTokensArray.forEach((token) => {
+      if (token.symbol) {
+        allTokens[token.symbol] = token;
+      }
+    });
+
+    const tokenSymbols = Object.keys(allTokens);
+
+    this.logger.info(
+      `Found ${tokenSymbols.length} tokens: ${tokenSymbols.join(", ")}`
+    );
+
+    // Generate all unique pairs
+    const tokenPairs = [];
+    for (let i = 0; i < tokenSymbols.length; i++) {
+      for (let j = i + 1; j < tokenSymbols.length; j++) {
+        const token1Symbol = tokenSymbols[i];
+        const token2Symbol = tokenSymbols[j];
+        const token1 = allTokens[token1Symbol];
+        const token2 = allTokens[token2Symbol];
+
+        tokenPairs.push({
+          token1Symbol,
+          token2Symbol,
+          token1Address: token1.address,
+          token2Address: token2.address,
+          token1Decimals: token1.decimals,
+          token2Decimals: token2.decimals,
+        });
+      }
+    }
+
+    this.logger.info(
+      `Testing ${tokenPairs.length} pairs on ${dexName.length} DEXes`
+    );
+
+    const results = {};
+    const startTime = Date.now();
+
+    // Test each DEX
+    for (const dex of dexName) {
+      const routerInfo = this.routers.get(dex);
+      if (!routerInfo) {
+        this.logger.warn(`DEX ${dex} not found, skipping`);
+        continue;
+      }
+
+      this.logger.info(`Testing ${dex}...`);
+
+      results[dex] = {
+        address: routerInfo.address,
+        supported: [],
+        unsupported: [],
+        tested: 0,
+        errors: 0,
+      };
+
+      const router = routerInfo.contract;
+
+      // Test pairs in batches
+      const batchSize = 10;
+      for (let i = 0; i < tokenPairs.length; i += batchSize) {
+        const batch = tokenPairs.slice(i, i + batchSize);
+
+        const batchResults = await Promise.allSettled(
+          batch.map(async (pair) => {
+            try {
+              const amountInWei = parseUnits(testAmount, pair.token1Decimals);
+              const path = [pair.token1Address, pair.token2Address];
+
+              // Try to get amounts out - will fail if pair doesn't exist
+              await router.getAmountsOut(amountInWei, path);
+
+              return { supported: true };
+            } catch (error) {
+              return {
+                supported: false,
+                error: error.message.substring(0, 100),
+              };
+            }
+          })
+        );
+
+        // Process batch results
+        for (let j = 0; j < batch.length; j++) {
+          const pair = batch[j];
+          const result = batchResults[j];
+          const pairName = `${pair.token1Symbol}/${pair.token2Symbol}`;
+
+          results[dex].tested++;
+
+          if (result.status === "fulfilled" && result.value.supported) {
+            results[dex].supported.push(pairName);
+          } else {
+            results[dex].unsupported.push(pairName);
+            if (result.status === "rejected") {
+              results[dex].errors++;
+            }
+          }
+        }
+
+        // Small delay to avoid rate limits
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      this.logger.info(
+        `${dex} complete: ${results[dex].supported.length} supported, ${results[dex].unsupported.length} unsupported`
+      );
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+    // Build response
+    const response = {
+      success: true,
+      discovery: {
+        dexes: dexName,
+        totalPairs: tokenPairs.length,
+        testAmount,
+        durationSeconds: parseFloat(duration),
+      },
+      results: {},
+      configuration: this._generatePairConfiguration(results, outputMode),
+      timestamp: Date.now(),
+    };
+
+    // Add results based on outputMode
+    for (const [dex, data] of Object.entries(results)) {
+      response.results[dex] = {
+        address: data.address,
+        tested: data.tested,
+        errors: data.errors,
+        supportedCount: data.supported.length,
+        unsupportedCount: data.unsupported.length,
+        successRate: `${Math.round(
+          (data.supported.length / data.tested) * 100
+        )}%`,
+      };
+
+      if (outputMode === "supported" || outputMode === "both") {
+        response.results[dex].supported = data.supported;
+      }
+
+      if (outputMode === "unsupported" || outputMode === "both") {
+        response.results[dex].unsupported = data.unsupported;
+      }
+    }
+
+    return response;
+  }
+
+  /**
+   * Generate configuration snippet from discovery results
+   * @private
+   */
+  _generatePairConfiguration(results, outputMode) {
+    const config = {};
+
+    for (const [dex, data] of Object.entries(results)) {
+      config[dex] = {
+        address: data.address,
+      };
+
+      if (outputMode === "supported" || outputMode === "both") {
+        config[dex].supportedPairs = data.supported;
+      }
+
+      if (outputMode === "unsupported" || outputMode === "both") {
+        config[dex].unsupportedPairs = data.unsupported;
+      }
+
+      // Add recommendation
+      const successRate = Math.round(
+        (data.supported.length / data.tested) * 100
+      );
+      if (successRate > 70) {
+        config[dex].recommendation =
+          "Use unsupportedPairs (blacklist) - high success rate";
+      } else if (successRate > 30) {
+        config[dex].recommendation =
+          "Consider either approach - moderate success rate";
+      } else {
+        config[dex].recommendation =
+          "Use supportedPairs (whitelist) - low success rate";
+      }
+    }
+
+    return config;
   }
 
   /**

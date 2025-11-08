@@ -277,6 +277,56 @@ class SwapAPI {
       }
     });
 
+    // Discover supported/unsupported pairs for DEXes
+    this.app.post("/api/v1/swap/discover-pairs", async (req, res) => {
+      try {
+        const {
+          dexName,
+          testAmount = "1",
+          outputMode = "both",
+        } = req.body;
+
+        // Validate dexName
+        if (!dexName || !Array.isArray(dexName)) {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid request",
+            message: "dexName must be an array of DEX names",
+          });
+        }
+
+        // Validate outputMode
+        if (!["supported", "unsupported", "both"].includes(outputMode)) {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid outputMode",
+            message: 'outputMode must be "supported", "unsupported", or "both"',
+          });
+        }
+
+        this.logger.info("Starting pair discovery", {
+          dexes: dexName,
+          testAmount,
+          outputMode,
+        });
+
+        // Discover pairs
+        const result = await this.swapExecutor.discoverPairs({
+          dexName,
+          testAmount,
+          outputMode,
+        });
+
+        res.json(result);
+      } catch (error) {
+        this.logger.error("Failed to discover pairs", error);
+        res.status(500).json({
+          success: false,
+          error: error.message,
+        });
+      }
+    });
+
     // Execute arbitrage by ID
     this.app.post("/api/v1/swap/execute-arbitrage", async (req, res) => {
       try {
