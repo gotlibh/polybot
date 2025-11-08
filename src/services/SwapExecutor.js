@@ -634,6 +634,7 @@ class SwapExecutor {
       this.logger.error("Failed to get swap quote", error);
       return {
         success: false,
+        dex: params.dexName,
         error: error.message,
         timestamp: Date.now(),
       };
@@ -832,6 +833,21 @@ class SwapExecutor {
         };
       }
 
+      // Track unsupported pairs by DEX
+      const unsupportedPairs = [];
+
+      // Track failed quotes from direction A
+      if (quotesA.failedQuotes && quotesA.failedQuotes.length > 0) {
+        quotesA.failedQuotes.forEach(failedQuote => {
+          unsupportedPairs.push({
+            dex: failedQuote.dex,
+            direction: `${token1Info.symbol} → ${token2Info.symbol}`,
+            pair: `${token1Info.symbol}/${token2Info.symbol}`,
+            reason: failedQuote.error,
+          });
+        });
+      }
+
       // Now for each quote in direction A, get quotes for direction B using the output amount
       const arbitrageOpportunities = [];
 
@@ -856,6 +872,18 @@ class SwapExecutor {
         });
 
         if (!quotesB.success) continue;
+
+        // Track failed quotes from direction B
+        if (quotesB.failedQuotes && quotesB.failedQuotes.length > 0) {
+          quotesB.failedQuotes.forEach(failedQuote => {
+            unsupportedPairs.push({
+              dex: failedQuote.dex,
+              direction: `${token2Info.symbol} → ${token1Info.symbol}`,
+              pair: `${token1Info.symbol}/${token2Info.symbol}`,
+              reason: failedQuote.error,
+            });
+          });
+        }
 
         // Analyze each round-trip combination
         for (const quoteB of quotesB.quotes) {
@@ -1046,10 +1074,12 @@ class SwapExecutor {
           bestGrossProfitPercentage: bestProfitable
             ? bestProfitable.profitLossPercentage
             : null,
+          unsupportedPairsCount: unsupportedPairs.length,
         },
         bestProfitableOpportunity: bestProfitable || null,
         bestOverallOpportunity: bestOverall,
         allOpportunities: arbitrageOpportunities,
+        unsupportedPairs: unsupportedPairs.length > 0 ? unsupportedPairs : undefined,
         timestamp: Date.now(),
       };
     } catch (error) {
@@ -1113,6 +1143,7 @@ class SwapExecutor {
 
       const scanResults = [];
       const profitableOpportunities = [];
+      const allUnsupportedPairs = [];
       let scannedCount = 0;
       let errorCount = 0;
 
@@ -1151,6 +1182,11 @@ class SwapExecutor {
             };
 
             scanResults.push(result);
+
+            // Collect unsupported pairs from this analysis
+            if (analysis.unsupportedPairs && analysis.unsupportedPairs.length > 0) {
+              allUnsupportedPairs.push(...analysis.unsupportedPairs);
+            }
 
             // Check if profitable and meets minimum threshold (using NET profit after fees)
             if (
@@ -1224,11 +1260,25 @@ class SwapExecutor {
           };
         });
 
+      // Group unsupported pairs by DEX for better readability
+      const unsupportedByDex = {};
+      allUnsupportedPairs.forEach(item => {
+        if (!unsupportedByDex[item.dex]) {
+          unsupportedByDex[item.dex] = [];
+        }
+        unsupportedByDex[item.dex].push({
+          pair: item.pair,
+          direction: item.direction,
+          reason: item.reason,
+        });
+      });
+
       this.logger.info("Arbitrage scan completed", {
         totalPairs: tokenPairs.length,
         scanned: scannedCount,
         errors: errorCount,
         profitableFound: profitableOpportunities.length,
+        unsupportedPairs: allUnsupportedPairs.length,
         cached: this.arbitrageCache.size,
       });
 
@@ -1241,11 +1291,17 @@ class SwapExecutor {
           profitableOpportunities: profitableOpportunities.length,
           minProfitThreshold: `${minProfitPercentage}%`,
           cachedOpportunities: this.arbitrageCache.size,
+          unsupportedPairsCount: allUnsupportedPairs.length,
         },
         dexesAnalyzed: dexNames,
         initialAmount: amountIn,
         profitableOpportunities: profitableWithIds,
         allResults: allResultsWithIds,
+        unsupportedPairs: allUnsupportedPairs.length > 0 ? {
+          total: allUnsupportedPairs.length,
+          byDex: unsupportedByDex,
+          all: allUnsupportedPairs,
+        } : undefined,
         timestamp: Date.now(),
       };
     } catch (error) {

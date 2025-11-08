@@ -372,7 +372,8 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
     "hasArbitrage": false,
     "bestProfit": null,
     "bestProfitPercentage": null,
-    "bestProfitPath": null
+    "bestProfitPath": null,
+    "unsupportedPairsCount": 2
   },
   "bestProfitableOpportunity": null,
   "bestOverallOpportunity": {
@@ -455,6 +456,20 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
       "isProfit": false
     }
   ],
+  "unsupportedPairs": [
+    {
+      "dex": "ApeSwap",
+      "direction": "WBTC → USDC",
+      "pair": "WBTC/USDC",
+      "reason": "execution reverted"
+    },
+    {
+      "dex": "ApeSwap",
+      "direction": "USDC → WBTC",
+      "pair": "WBTC/USDC",
+      "reason": "execution reverted"
+    }
+  ],
   "timestamp": 1699000000000
 }
 ```
@@ -483,6 +498,8 @@ curl -X POST http://localhost:3000/api/v1/swap/quote \
 | `gasEstimate.gasCostInToken` | Estimated gas cost converted to the trading token |
 | `gasEstimate.totalGasUnits` | Total gas units for both swaps |
 | `gasEstimate.gasPriceGwei` | Current gas price in Gwei |
+| `summary.unsupportedPairsCount` | Number of DEX/direction combinations that don't support this pair |
+| `unsupportedPairs` | Array of DEXes that don't have liquidity pools for this pair (omitted if empty) |
 
 **Gas Fee Calculation:**
 
@@ -557,7 +574,9 @@ curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
     "scannedPairs": 190,
     "errorCount": 12,
     "profitableOpportunities": 3,
-    "minProfitThreshold": "0.5%"
+    "minProfitThreshold": "0.5%",
+    "cachedOpportunities": 8,
+    "unsupportedPairsCount": 45
   },
   "dexesAnalyzed": ["QuickSwap", "SushiSwap"],
   "initialAmount": "1000",
@@ -629,6 +648,38 @@ curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
       "bestProfitPercentage": "0.53%"
     }
   ],
+  "unsupportedPairs": {
+    "total": 45,
+    "byDex": {
+      "ApeSwap": [
+        {
+          "pair": "LINK/CRV",
+          "direction": "LINK → CRV",
+          "reason": "execution reverted"
+        },
+        {
+          "pair": "LINK/CRV",
+          "direction": "CRV → LINK",
+          "reason": "execution reverted"
+        }
+      ],
+      "JetSwap": [
+        {
+          "pair": "AAVE/WETH",
+          "direction": "AAVE → WETH",
+          "reason": "execution reverted"
+        }
+      ]
+    },
+    "all": [
+      {
+        "dex": "ApeSwap",
+        "pair": "LINK/CRV",
+        "direction": "LINK → CRV",
+        "reason": "execution reverted"
+      }
+    ]
+  },
   "timestamp": 1699000000000
 }
 ```
@@ -641,8 +692,13 @@ curl -X POST http://localhost:3000/api/v1/swap/scan-arbitrage \
 | `scan.scannedPairs` | Number of pairs successfully scanned |
 | `scan.errorCount` | Number of pairs that failed to scan |
 | `scan.profitableOpportunities` | Count of profitable opportunities found |
+| `scan.cachedOpportunities` | Number of arbitrage opportunities cached for execution |
+| `scan.unsupportedPairsCount` | Total number of DEX/pair combinations without liquidity |
 | `profitableOpportunities` | Top 20 profitable opportunities (sorted by profit %) |
 | `allResults` | All pairs with any arbitrage detected |
+| `unsupportedPairs.total` | Total count of unsupported pair/direction combinations |
+| `unsupportedPairs.byDex` | Unsupported pairs grouped by DEX for easy review |
+| `unsupportedPairs.all` | Complete list of all unsupported pairs with details |
 
 **How It Works:**
 
