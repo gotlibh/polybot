@@ -255,6 +255,7 @@ class SwapAPI {
           dexes: req.body.dexName,
           amountIn: req.body.amountIn,
           minProfitPercentage: req.body.minProfitPercentage || 0.1,
+          parallel: req.body.parallel !== false,
         });
 
         // Run the scan
@@ -263,6 +264,7 @@ class SwapAPI {
           amountIn: req.body.amountIn,
           slippage: req.body.slippage,
           minProfitPercentage: req.body.minProfitPercentage,
+          parallel: req.body.parallel,
         });
 
         res.json(result);

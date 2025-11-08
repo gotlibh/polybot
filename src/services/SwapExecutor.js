@@ -652,24 +652,48 @@ class SwapExecutor {
         ? params.dexName
         : [params.dexName];
 
+      // Default to parallel execution unless explicitly disabled
+      const parallel = params.parallel !== false;
+
       this.logger.info("Getting multi-DEX quotes", {
         dexes: dexNames,
         tokenIn: params.tokenInSymbol || params.tokenIn,
         tokenOut: params.tokenOutSymbol || params.tokenOut,
         amountIn: params.amountIn,
+        parallel,
       });
 
-      // Query all DEXes in parallel
-      const quotePromises = dexNames.map((dexName) =>
-        this.getSwapQuote({ ...params, dexName }).catch((error) => ({
-          success: false,
-          dex: dexName,
-          error: error.message,
-          timestamp: Date.now(),
-        }))
-      );
+      let quotes;
 
-      const quotes = await Promise.all(quotePromises);
+      if (parallel) {
+        // Query all DEXes in parallel
+        const quotePromises = dexNames.map((dexName) =>
+          this.getSwapQuote({ ...params, dexName }).catch((error) => ({
+            success: false,
+            dex: dexName,
+            error: error.message,
+            timestamp: Date.now(),
+          }))
+        );
+
+        quotes = await Promise.all(quotePromises);
+      } else {
+        // Query all DEXes sequentially
+        quotes = [];
+        for (const dexName of dexNames) {
+          try {
+            const quote = await this.getSwapQuote({ ...params, dexName });
+            quotes.push(quote);
+          } catch (error) {
+            quotes.push({
+              success: false,
+              dex: dexName,
+              error: error.message,
+              timestamp: Date.now(),
+            });
+          }
+        }
+      }
 
       // Filter successful quotes
       const validQuotes = quotes.filter((q) => q.success);
@@ -770,12 +794,13 @@ class SwapExecutor {
    */
   async getArbitrageAnalysis(params) {
     try {
-      const { token1, token2, dexName: dexNames, amountIn, slippage } = params;
+      const { token1, token2, dexName: dexNames, amountIn, slippage, parallel } = params;
 
       this.logger.info("Analyzing arbitrage opportunities", {
         pair: `${token1}/${token2}`,
         dexes: dexNames,
         amountIn,
+        parallel: parallel !== false,
       });
 
       // Resolve both tokens
@@ -796,6 +821,7 @@ class SwapExecutor {
         tokenOutSymbol: token2Info.symbol,
         amountIn,
         slippage,
+        parallel,
       });
 
       if (!quotesA.success) {
@@ -826,6 +852,7 @@ class SwapExecutor {
           tokenOutSymbol: token1Info.symbol,
           amountIn: amountOut,
           slippage,
+          parallel,
         });
 
         if (!quotesB.success) continue;
@@ -1047,12 +1074,14 @@ class SwapExecutor {
         amountIn,
         slippage,
         minProfitPercentage = 0.1,
+        parallel,
       } = params;
 
       this.logger.info("Starting arbitrage scan across all token pairs", {
         dexes: dexNames,
         amountIn,
         minProfitPercentage: `${minProfitPercentage}%`,
+        parallel: parallel !== false,
       });
 
       // Get all tokens from registry
@@ -1105,6 +1134,7 @@ class SwapExecutor {
             dexName: dexNames,
             amountIn,
             slippage,
+            parallel,
           });
 
           if (analysis.success) {

@@ -196,11 +196,17 @@ Get quotes from multiple DEXes simultaneously to compare prices and find the bes
   "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
   "tokenIn": "USDC",
   "tokenOut": "WBTC",
-  "amountIn": "100000"
+  "amountIn": "100000",
+  "parallel": true
 }
 ```
 
-**Note:** Pass `dexName` as an array to query multiple DEXes. All other parameters remain the same as single DEX quotes.
+**Parameters:**
+- `dexName` (array): Array of DEX names to query
+- `tokenIn`, `tokenOut`, `amountIn`: Same as single DEX quotes
+- `parallel` (boolean, optional): Query DEXes in parallel (default: `true`) or sequentially (`false`)
+
+**Note:** By default, DEX queries run in parallel for maximum performance. Set `"parallel": false` to query DEXes sequentially, which may be useful for rate-limiting or debugging purposes.
 
 **Example:**
 ```bash
@@ -316,7 +322,8 @@ Analyze arbitrage opportunities for a token pair across multiple DEXes. This end
 {
   "token": "WBTC/USDC",
   "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
-  "amountIn": "1"
+  "amountIn": "1",
+  "parallel": true
 }
 ```
 
@@ -328,6 +335,7 @@ Analyze arbitrage opportunities for a token pair across multiple DEXes. This end
 | `dexName` | array | Yes | Array of DEX names (minimum 2) |
 | `amountIn` | string | Yes | Initial amount to start with |
 | `slippage` | number | No | Slippage tolerance % |
+| `parallel` | boolean | No | Query DEXes in parallel (default: `true`) or sequentially (`false`) |
 
 **Example:**
 ```bash
@@ -513,7 +521,8 @@ Automatically scans all possible token pair combinations from the token registry
   "dexName": ["QuickSwap", "SushiSwap", "ApeSwap"],
   "amountIn": "1000",
   "minProfitPercentage": 0.5,
-  "slippage": 0.5
+  "slippage": 0.5,
+  "parallel": true
 }
 ```
 
@@ -525,6 +534,7 @@ Automatically scans all possible token pair combinations from the token registry
 | `amountIn` | string | Yes | Test amount for arbitrage calculations |
 | `minProfitPercentage` | number | No | Minimum profit % to report (default: 0.1%) |
 | `slippage` | number | No | Slippage tolerance % |
+| `parallel` | boolean | No | Query DEXes in parallel (default: `true`) or sequentially (`false`) |
 
 **Example:**
 ```bash
